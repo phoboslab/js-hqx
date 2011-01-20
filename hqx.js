@@ -19,10 +19,10 @@
  * License along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
- 
+
 
 (function(window){
-	
+
 var document = window.document;
 
 var YUV1 = 0,
@@ -32,7 +32,7 @@ var YUV1 = 0,
 
 var MASK_2 = 0x00FF00,
 	MASK_13 = 0xFF00FF,
-	
+
 	Ymask = 0x00FF0000,
 	Umask = 0x0000FF00,
 	Vmask = 0x000000FF,
@@ -69,7 +69,7 @@ var Interp1 = function( pc, c1, c2 ) {
     }
     dest[pc] = ((((c1 & MASK_2) * 3 + (c2 & MASK_2)) >> 2) & MASK_2) +
         ((((c1 & MASK_13) * 3 + (c2 & MASK_13)) >> 2) & MASK_13);
-	
+
 	dest[pc] |= (c1 & 0xFF000000);
 };
 
@@ -77,7 +77,7 @@ var Interp2 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*2+c2+c3) >> 2;
     dest[pc] = ((((c1 & MASK_2) * 2 + (c2 & MASK_2) + (c3 & MASK_2)) >> 2) & MASK_2) +
           ((((c1 & MASK_13) * 2 + (c2 & MASK_13) + (c3 & MASK_13)) >> 2) & MASK_13);
-	
+
 	dest[pc] |= (c1 & 0xFF000000);
 };
 
@@ -89,7 +89,7 @@ var Interp3 = function( pc, c1, c2 ) {
     }
     dest[pc] = ((((c1 & MASK_2) * 7 + (c2 & MASK_2)) >> 3) & MASK_2) +
         ((((c1 & MASK_13) * 7 + (c2 & MASK_13)) >> 3) & MASK_13);
-	
+
 	dest[pc] |= (c1 & 0xFF000000);
 };
 
@@ -97,7 +97,7 @@ var Interp4 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*2+(c2+c3)*7)/16;
     dest[pc] = ((((c1 & MASK_2) * 2 + (c2 & MASK_2) * 7 + (c3 & MASK_2) * 7) >> 4) & MASK_2) +
           ((((c1 & MASK_13) * 2 + (c2 & MASK_13) * 7 + (c3 & MASK_13) * 7) >> 4) & MASK_13);
-		  
+
 	dest[pc] |= (c1 & 0xFF000000);
 };
 
@@ -109,7 +109,7 @@ var Interp5 = function( pc, c1, c2 ) {
     }
     dest[pc] = ((((c1 & MASK_2) + (c2 & MASK_2)) >> 1) & MASK_2) +
         ((((c1 & MASK_13) + (c2 & MASK_13)) >> 1) & MASK_13);
-	
+
 	dest[pc] |= (c1 & 0xFF000000);
 };
 
@@ -117,7 +117,7 @@ var Interp6 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*5+c2*2+c3)/8;
     dest[pc] = ((((c1 & MASK_2) * 5 + (c2 & MASK_2) * 2 + (c3 & MASK_2)) >> 3) & MASK_2) +
           ((((c1 & MASK_13) * 5 + (c2 & MASK_13) * 2 + (c3 & MASK_13)) >> 3) & MASK_13);
-		  
+
 	dest[pc] |= (c1 & 0xFF000000);
 };
 
@@ -125,7 +125,7 @@ var Interp7 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*6+c2+c3)/8;
     dest[pc] = ((((c1 & MASK_2) * 6 + (c2 & MASK_2) + (c3 & MASK_2)) >> 3) & MASK_2) +
           ((((c1 & MASK_13) * 6 + (c2 & MASK_13) + (c3 & MASK_13)) >> 3) & MASK_13);
-		  
+
 	dest[pc] |= (c1 & 0xFF000000);
 };
 
@@ -137,7 +137,7 @@ var Interp8 = function( pc, c1, c2 ) {
     }
     dest[pc] = ((((c1 & MASK_2) * 5 + (c2 & MASK_2) * 3) >> 3) & MASK_2) +
           ((((c1 & MASK_13) * 5 + (c2 & MASK_13) * 3) >> 3) & MASK_13);
-		  
+
 	dest[pc] |= (c1 & 0xFF000000);
 };
 
@@ -145,7 +145,7 @@ var Interp9 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*2+(c2+c3)*3)/8;
     dest[pc] = ((((c1 & MASK_2) * 2 + (c2 & MASK_2) * 3 + (c3 & MASK_2) * 3) >> 3) & MASK_2) +
           ((((c1 & MASK_13) * 2 + (c2 & MASK_13) * 3 + (c3 & MASK_13) * 3) >> 3) & MASK_13);
-		  
+
 	dest[pc] |= (c1 & 0xFF000000);
 };
 
@@ -153,7 +153,7 @@ var Interp10 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*14+c2+c3)/16;
     dest[pc] = ((((c1 & MASK_2) * 14 + (c2 & MASK_2) + (c3 & MASK_2)) >> 4) & MASK_2) +
           ((((c1 & MASK_13) * 14 + (c2 & MASK_13) + (c3 & MASK_13)) >> 4) & MASK_13);
-		  
+
 	dest[pc] |= (c1 & 0xFF000000);
 };
 
@@ -163,41 +163,46 @@ window.hqx = function( img, scale ) {
 	if( [2,3,4].indexOf(scale) == -1 ) {
 		return img;
 	}
-	
+
 	src = [];
 	dest = [];
-	
-	var orig = document.createElement('canvas');
-	orig.width = img.width;
-	orig.height = img.height;
-	var origCtx = orig.getContext('2d');
-	origCtx.drawImage( img, 0, 0, img.width, img.height, 0, 0, img.width, img.height );
-	var origPixels = origCtx.getImageData(0, 0, img.width, img.height);
-	
-	
+
+	var orig, origCtx, scaled;
+	if (img instanceof HTMLCanvasElement){
+		orig = img;
+		origCtx = orig.getContext('2d');
+		scaled = orig;
+	} else {
+		orig = document.createElement('canvas');
+		orig.width = img.width;
+		orig.height = img.height;
+		origCtx = orig.getContext('2d');
+		origCtx.drawImage( img, 0, 0, img.width, img.height, 0, 0, img.width, img.height);
+		scaled = document.createElement('canvas');
+	}
+	var origPixels = origCtx.getImageData(0, 0, orig.width, orig.height);
+
+
 	// pack RGBA colors into integers
 	var count = img.width * img.height;
 	for( var i = 0; i < count; i++ ) {
-		var index = i * 4;		
+		var index = i * 4;
 		src[i] = (origPixels.data[index+3] << 24) +
 				(origPixels.data[index+2] << 16) +
 				(origPixels.data[index+1] << 8) +
 				(origPixels.data[index]);
 	}
-	
-	
+
 	// This is where the magic happens
 	if( scale == 2 ) hq2x( img.width, img.height );
 	else if( scale == 3 ) hq3x( img.width, img.height );
 	else if( scale == 4 ) hq4x( img.width, img.height );
-	
-	
-	var scaled = document.createElement('canvas');
-	scaled.width = img.width * scale;
-	scaled.height = img.height * scale;
+
+	scaled.width = orig.width * scale;
+	scaled.height = orig.height * scale;
 	var scaledCtx = scaled.getContext('2d');
 	var scaledPixels = scaledCtx.getImageData( 0, 0, scaled.width, scaled.height );
-	
+
 	// unpack integers to RGBA
 	for( var j = 0; j < dest.length; j++ ) {
 		var c = dest[j];
