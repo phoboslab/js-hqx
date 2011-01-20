@@ -199,7 +199,7 @@ window.hqx = function( img, scale ) {
 	var scaledPixels = scaledCtx.getImageData( 0, 0, scaled.width, scaled.height );
 	
 	// unpack integers to RGBA
-	for( j = 0; j < dest.length; j++ ) {
+	for( var j = 0; j < dest.length; j++ ) {
 		var c = dest[j];
 		var a = (c & 0xFF000000) >> 24;
 		var index = j * 4;
@@ -226,10 +226,10 @@ window.hqx = function( img, scale ) {
 var hq2x = function( width, height ) {
 	var
 		i, j, k,
-		prevline, nextline
+		prevline, nextline,
 		w = [],
 		dpL = width * 2,
-		
+
 		dp = 0,
 		sp = 0;
 
@@ -2942,7 +2942,7 @@ var hq2x = function( width, height ) {
                         }
                         break;
                     }
-            }			
+            }
             sp++;
             dp += 2;
         }
@@ -2969,13 +2969,13 @@ var hq2x = function( width, height ) {
 // hq 3x
 
 
-var hq3x = function( width, height ) {		
+var hq3x = function( width, height ) {
 	var
 		i, j, k,
-		prevline, nextline
+		prevline, nextline,
 		w = [],
 		dpL = width * 3,
-		
+
 		dp = 0,
 		sp = 0;
 
@@ -6690,10 +6690,10 @@ var hq3x = function( width, height ) {
 var hq4x = function( width, height ) {
 	var
 		i, j, k,
-		prevline, nextline
+		prevline, nextline,
 		w = [],
 		dpL = width * 4,
-		
+
 		dp = 0,
 		sp = 0;
 
@@ -11747,4 +11747,3 @@ var hq4x = function( width, height ) {
 }
 
 })(window);
-
