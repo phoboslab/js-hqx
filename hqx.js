@@ -1,3 +1,7 @@
+// ==ClosureCompiler==
+// @compilation_level SIMPLE_OPTIMIZATIONS
+// ==/ClosureCompiler==
+
 /*
  * Copyright (C) 2003 Maxim Stepin ( maxst@hiend3d.com )
  *
@@ -23,14 +27,14 @@
 
 (function(window){
 
-var document = window.document;
+var document = window.document,
 
-var YUV1 = 0,
+	YUV1 = 0,
 	YUV2 = 0,
 	src = [],
-	dest = [];
+	dest = [],
 
-var MASK_2 = 0x00FF00,
+	MASK_2 = 0x00FF00,
 	MASK_13 = 0xFF00FF,
 
 	Ymask = 0x00FF0000,
@@ -40,30 +44,32 @@ var MASK_2 = 0x00FF00,
 	trU = 0x00000700,
 	trV = 0x00000006;
 
+// optimum Math.abs
+var MathAbs = function(n) { return n < 0 ? -n : n; };
+
 var RGBtoYUV = function( c ) {
 	var r = (c & 0xFF0000) >> 16;
 	var g = (c & 0x00FF00) >> 8;
 	var b = c & 0x0000FF;
-	var y = (0.299*r + 0.587*g + 0.114*b) | 0;
-	var u = ((-0.169*r - 0.331*g + 0.5*b) + 128) | 0;
-	var v = ((0.5*r - 0.419*g - 0.081*b) + 128) | 0;
-	return (y << 16) + (u << 8) + v;
+	return ((/*y=*/(0.299*r + 0.587*g + 0.114*b) | 0) << 16) +
+		((/*u=*/((-0.169*r - 0.331*g + 0.5*b) + 128) | 0) << 8) + 
+		(/*v=*/((0.5*r - 0.419*g - 0.081*b) + 128) | 0);
 };
 
 var Diff = function( w1, w2 ) {
 	// Mask against RGB_MASK to discard the alpha channel
 	YUV1 = RGBtoYUV(w1);
 	YUV2 = RGBtoYUV(w2);
-	return ( ( Math.abs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
-			( Math.abs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
-			( Math.abs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) );
+	return ( ( MathAbs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
+			( MathAbs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
+			( MathAbs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) );
 }
 
 /* Interpolate functions */
 
 var Interp1 = function( pc, c1, c2 ) {
     //*pc = (c1*3+c2) >> 2;
-    if (c1 == c2) {
+    if (c1 === c2) {
         dest[pc] = c1;
         return;
     }
@@ -75,15 +81,15 @@ var Interp1 = function( pc, c1, c2 ) {
 
 var Interp2 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*2+c2+c3) >> 2;
-    dest[pc] = ((((c1 & MASK_2) * 2 + (c2 & MASK_2) + (c3 & MASK_2)) >> 2) & MASK_2) +
-          ((((c1 & MASK_13) * 2 + (c2 & MASK_13) + (c3 & MASK_13)) >> 2) & MASK_13);
+    dest[pc] = (((((c1 & MASK_2) << 1) + (c2 & MASK_2) + (c3 & MASK_2)) >> 2) & MASK_2) +
+          (((((c1 & MASK_13) << 1) + (c2 & MASK_13) + (c3 & MASK_13)) >> 2) & MASK_13);
 
 	dest[pc] |= (c1 & 0xFF000000);
 };
 
 var Interp3 = function( pc, c1, c2 ) {
     //*pc = (c1*7+c2)/8;
-    if (c1 == c2) {
+    if (c1 === c2) {
         dest[pc] = c1;
         return;
     }
@@ -95,15 +101,15 @@ var Interp3 = function( pc, c1, c2 ) {
 
 var Interp4 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*2+(c2+c3)*7)/16;
-    dest[pc] = ((((c1 & MASK_2) * 2 + (c2 & MASK_2) * 7 + (c3 & MASK_2) * 7) >> 4) & MASK_2) +
-          ((((c1 & MASK_13) * 2 + (c2 & MASK_13) * 7 + (c3 & MASK_13) * 7) >> 4) & MASK_13);
+    dest[pc] = (((((c1 & MASK_2) << 1) + (c2 & MASK_2) * 7 + (c3 & MASK_2) * 7) >> 4) & MASK_2) +
+          (((((c1 & MASK_13) << 1) + (c2 & MASK_13) * 7 + (c3 & MASK_13) * 7) >> 4) & MASK_13);
 
 	dest[pc] |= (c1 & 0xFF000000);
 };
 
 var Interp5 = function( pc, c1, c2 ) {
     //*pc = (c1+c2) >> 1;
-    if (c1 == c2) {
+    if (c1 === c2) {
         dest[pc] = c1;
         return;
     }
@@ -115,8 +121,8 @@ var Interp5 = function( pc, c1, c2 ) {
 
 var Interp6 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*5+c2*2+c3)/8;
-    dest[pc] = ((((c1 & MASK_2) * 5 + (c2 & MASK_2) * 2 + (c3 & MASK_2)) >> 3) & MASK_2) +
-          ((((c1 & MASK_13) * 5 + (c2 & MASK_13) * 2 + (c3 & MASK_13)) >> 3) & MASK_13);
+    dest[pc] = ((((c1 & MASK_2) * 5 + ((c2 & MASK_2) << 1) + (c3 & MASK_2)) >> 3) & MASK_2) +
+          ((((c1 & MASK_13) * 5 + ((c2 & MASK_13) << 1) + (c3 & MASK_13)) >> 3) & MASK_13);
 
 	dest[pc] |= (c1 & 0xFF000000);
 };
@@ -131,7 +137,7 @@ var Interp7 = function( pc, c1, c2, c3 ) {
 
 var Interp8 = function( pc, c1, c2 ) {
     //*pc = (c1*5+c2*3)/8;
-    if (c1 == c2) {
+    if (c1 === c2) {
         dest[pc] = c1;
         return;
     }
@@ -143,8 +149,8 @@ var Interp8 = function( pc, c1, c2 ) {
 
 var Interp9 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*2+(c2+c3)*3)/8;
-    dest[pc] = ((((c1 & MASK_2) * 2 + (c2 & MASK_2) * 3 + (c3 & MASK_2) * 3) >> 3) & MASK_2) +
-          ((((c1 & MASK_13) * 2 + (c2 & MASK_13) * 3 + (c3 & MASK_13) * 3) >> 3) & MASK_13);
+    dest[pc] = (((((c1 & MASK_2) << 1) + (c2 & MASK_2) * 3 + (c3 & MASK_2) * 3) >> 3) & MASK_2) +
+          (((((c1 & MASK_13) << 1) + (c2 & MASK_13) * 3 + (c3 & MASK_13) * 3) >> 3) & MASK_13);
 
 	dest[pc] |= (c1 & 0xFF000000);
 };
@@ -160,7 +166,7 @@ var Interp10 = function( pc, c1, c2, c3 ) {
 
 window.hqx = function( img, scale ) {
 	// We can only scale with a factor of 2, 3 or 4
-	if( [2,3,4].indexOf(scale) == -1 ) {
+	if( [2,3,4].indexOf(scale) === -1 ) {
 		return img;
 	}
 
@@ -180,38 +186,44 @@ window.hqx = function( img, scale ) {
 		origCtx.drawImage( img, 0, 0, img.width, img.height, 0, 0, img.width, img.height);
 		scaled = document.createElement('canvas');
 	}
-	var origPixels = origCtx.getImageData(0, 0, orig.width, orig.height);
+	var origPixels = origCtx.getImageData(0, 0, orig.width, orig.height).data;
 
 
 	// pack RGBA colors into integers
 	var count = img.width * img.height;
+	var index;
 	for( var i = 0; i < count; i++ ) {
-		var index = i * 4;
-		src[i] = (origPixels.data[index+3] << 24) +
-				(origPixels.data[index+2] << 16) +
-				(origPixels.data[index+1] << 8) +
-				(origPixels.data[index]);
+		//var index = i * 4; otimized
+		index = i << 2;
+		src[i] = (origPixels[index+3] << 24) +
+				(origPixels[index+2] << 16) +
+				(origPixels[index+1] << 8) +
+				origPixels[index];
 	}
 
 	// This is where the magic happens
-	if( scale == 2 ) hq2x( img.width, img.height );
-	else if( scale == 3 ) hq3x( img.width, img.height );
-	else if( scale == 4 ) hq4x( img.width, img.height );
+	if( scale === 2 ) hq2x( img.width, img.height );
+	else if( scale === 3 ) hq3x( img.width, img.height );
+	else if( scale === 4 ) hq4x( img.width, img.height );
+	// alternative: window['hq'+scale+'x']( img.width, img.height ); 
 
 	scaled.width = orig.width * scale;
 	scaled.height = orig.height * scale;
 	var scaledCtx = scaled.getContext('2d');
 	var scaledPixels = scaledCtx.getImageData( 0, 0, scaled.width, scaled.height );
 
+	var c, a, 
+		scaledPixelsData = scaledPixels.data;
 	// unpack integers to RGBA
 	for( var j = 0; j < dest.length; j++ ) {
-		var c = dest[j];
-		var a = (c & 0xFF000000) >> 24;
-		var index = j * 4;
-		scaledPixels.data[index+3] = a < 0 ? a + 256 : 0; // signed/unsigned :/
-		scaledPixels.data[index+2] = (c & 0x00FF0000) >> 16;
-		scaledPixels.data[index+1] = (c & 0x0000FF00) >> 8;
-		scaledPixels.data[index] = c & 0x000000FF;
+		c = dest[j];
+		a = (c & 0xFF000000) >> 24;
+		//index = j * 4; optimized
+		index = j << 2;
+		scaledPixelsData[index+3] = a < 0 ? a + 256 : 0; // signed/unsigned :/
+		scaledPixelsData[index+2] = (c & 0x00FF0000) >> 16;
+		scaledPixelsData[index+1] = (c & 0x0000FF00) >> 8;
+		scaledPixelsData[index] = c & 0x000000FF;
 	}
 	src = [];
 	dest = [];
@@ -233,10 +245,28 @@ var hq2x = function( width, height ) {
 		i, j, k,
 		prevline, nextline,
 		w = [],
-		dpL = width * 2,
+		//dpL = width * 2, optimized
+		dpL = width << 1,
 
 		dp = 0,
 		sp = 0;
+		
+	// internal to local optimization
+	var MathAbs = MathAbs,
+		RGBtoYUV = RGBtoYUV,
+		Diff = Diff,
+		Interp1 = Interp1,
+		Interp2 = Interp2,
+		Interp3 = Interp3,
+		Interp4 = Interp4,
+		Interp5 = Interp5,
+		Interp6 = Interp6,
+		Interp7 = Interp7,
+		Interp8 = Interp8,
+		Interp9 = Interp9,
+		Interp10 = Interp10,
+		src = src,
+		dest = dest;
 
     //   +----+----+----+
     //   |    |    |    |
@@ -251,8 +281,8 @@ var hq2x = function( width, height ) {
 
     for (j=0; j<height; j++)
     {
-        if (j>0)      prevline = -width; else prevline = 0;
-        if (j<height-1) nextline =  width; else nextline = 0;
+		prevline = j>0 ? -width : 0;
+		nextline = j<height-1 ? width : 0;
 
         for (i=0; i<width; i++)
         {
@@ -291,16 +321,17 @@ var hq2x = function( width, height ) {
 
             YUV1 = RGBtoYUV(w[5]);
 
-            for (k=1; k<=9; k++)
+            //for (k=1; k<=9; k++) optimized
+            for (k=1; k < 10; k++) // k<=9
             {
-                if (k==5) continue;
+                if (k===5) continue;
 
-                if ( w[k] != w[5] )
+                if ( w[k] !== w[5] )
                 {
                     YUV2 = RGBtoYUV(w[k]);
-                    if ( ( Math.abs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
-                            ( Math.abs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
-                            ( Math.abs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
+                    if ( ( MathAbs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
+                            ( MathAbs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
+                            ( MathAbs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
                         pattern |= flag;
                 }
                 flag <<= 1;
@@ -2949,7 +2980,8 @@ var hq2x = function( width, height ) {
                     }
             }
             sp++;
-            dp += 2;
+            //dp += 2; optimized
+            dp <<= 1;
         }
         dp += dpL;
     }
@@ -2984,6 +3016,23 @@ var hq3x = function( width, height ) {
 		dp = 0,
 		sp = 0;
 
+	// internal to local optimization
+	var MathAbs = MathAbs,
+		RGBtoYUV = RGBtoYUV,
+		Diff = Diff,
+		Interp1 = Interp1,
+		Interp2 = Interp2,
+		Interp3 = Interp3,
+		Interp4 = Interp4,
+		Interp5 = Interp5,
+		Interp6 = Interp6,
+		Interp7 = Interp7,
+		Interp8 = Interp8,
+		Interp9 = Interp9,
+		Interp10 = Interp10,
+		src = src,
+		dest = dest;
+
 	//   +----+----+----+
 	//   |	|	|	|
 	//   | w1 | w2 | w3 |
@@ -2997,8 +3046,8 @@ var hq3x = function( width, height ) {
 
 	for (j=0; j<height; j++)
 	{
-		if (j>0)	  prevline = -width; else prevline = 0;
-		if (j<height-1) nextline =  width; else nextline = 0;
+		prevline = j>0 ? -width : 0;
+		nextline = j<height-1 ? width : 0;
 
 		for (i=0; i<width; i++)
 		{
@@ -3037,16 +3086,17 @@ var hq3x = function( width, height ) {
 
 			YUV1 = RGBtoYUV(w[5]);
 
-			for (k=1; k<=9; k++)
+			//for (k=1; k<=9; k++) optimized
+			for (k=1; k< 10; k++) // k<=9
 			{
-				if (k==5) continue;
+				if (k===5) continue;
 
-				if ( w[k] != w[5] )
+				if ( w[k] !== w[5] )
 				{
 					YUV2 = RGBtoYUV(w[k]);
-					if ( ( Math.abs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
-							( Math.abs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
-							( Math.abs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
+					if ( ( MathAbs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
+							( MathAbs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
+							( MathAbs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
 						pattern |= flag;
 				}
 				flag <<= 1;
@@ -3077,9 +3127,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 2:
@@ -3093,9 +3143,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 16:
@@ -3109,9 +3159,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 64:
@@ -3125,9 +3175,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 8:
@@ -3141,9 +3191,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 3:
@@ -3157,9 +3207,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 6:
@@ -3173,9 +3223,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 20:
@@ -3189,9 +3239,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 144:
@@ -3205,9 +3255,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 192:
@@ -3221,9 +3271,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 96:
@@ -3237,9 +3287,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 40:
@@ -3253,9 +3303,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 9:
@@ -3269,9 +3319,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 18:
@@ -3292,9 +3342,9 @@ var hq3x = function( width, height ) {
 						}
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 80:
@@ -3305,18 +3355,18 @@ var hq3x = function( width, height ) {
 						Interp1(dp+2, w[5], w[3]);
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -3331,16 +3381,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							Interp1(dp+dpL+dpL, w[5], w[7]);
-							dest[dp+dpL+dpL+1] = w[5];
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 10:
@@ -3361,9 +3411,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+2, w[5], w[3]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 66:
@@ -3374,9 +3424,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 24:
@@ -3387,9 +3437,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 7:
@@ -3402,9 +3452,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 148:
@@ -3417,9 +3467,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 224:
@@ -3432,9 +3482,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 41:
@@ -3447,9 +3497,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 22:
@@ -3470,9 +3520,9 @@ var hq3x = function( width, height ) {
 						}
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 208:
@@ -3483,18 +3533,18 @@ var hq3x = function( width, height ) {
 						Interp1(dp+2, w[5], w[3]);
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -3509,16 +3559,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 11:
@@ -3539,9 +3589,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+2, w[5], w[3]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 19:
@@ -3563,9 +3613,9 @@ var hq3x = function( width, height ) {
 						}
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 146:
@@ -3576,20 +3626,20 @@ var hq3x = function( width, height ) {
 							dest[dp+1] = w[5];
 							Interp1(dp+2, w[5], w[3]);
 							dest[dp+dpL+2] = w[5];
-							Interp1(dp+dpL+dpL+2, w[5], w[8]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						}
 						else
 						{
 							Interp1(dp+1, w[5], w[2]);
 							Interp5(dp+2, w[2], w[6]);
 							Interp1(dp+dpL+2, w[6], w[5]);
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						Interp1(dp, w[5], w[1]);
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						break;
 					}
 				case 84:
@@ -3599,21 +3649,21 @@ var hq3x = function( width, height ) {
 						{
 							Interp1(dp+2, w[5], w[2]);
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
 							Interp2(dp+2, w[5], w[2], w[6]);
 							Interp1(dp+dpL+2, w[6], w[5]);
-							Interp1(dp+dpL+dpL+1, w[5], w[8]);
-							Interp5(dp+dpL+dpL+2, w[6], w[8]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp5(dp+(dpL << 1 /*==dpL * 2*/)+2, w[6], w[8]);
 						}
 						Interp2(dp, w[5], w[4], w[2]);
 						Interp1(dp+1, w[5], w[2]);
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						break;
 					}
 				case 112:
@@ -3622,16 +3672,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							Interp1(dp+dpL+dpL, w[5], w[4]);
-							dest[dp+dpL+dpL+1] = w[5];
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
 							Interp1(dp+dpL+2, w[5], w[6]);
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp1(dp+dpL+dpL+1, w[8], w[5]);
-							Interp5(dp+dpL+dpL+2, w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[8], w[5]);
+							Interp5(dp+(dpL << 1 /*==dpL * 2*/)+2, w[6], w[8]);
 						}
 						Interp2(dp, w[5], w[4], w[2]);
 						Interp1(dp+1, w[5], w[2]);
@@ -3646,16 +3696,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							Interp1(dp+dpL+dpL, w[5], w[7]);
-							dest[dp+dpL+dpL+1] = w[5];
-							Interp1(dp+dpL+dpL+2, w[5], w[6]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						}
 						else
 						{
 							Interp1(dp+dpL, w[5], w[4]);
-							Interp5(dp+dpL+dpL, w[8], w[4]);
-							Interp1(dp+dpL+dpL+1, w[8], w[5]);
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[8], w[4]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[8], w[5]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						Interp1(dp, w[5], w[1]);
 						Interp1(dp+1, w[5], w[2]);
@@ -3671,21 +3721,21 @@ var hq3x = function( width, height ) {
 						{
 							Interp1(dp, w[5], w[2]);
 							dest[dp+dpL] = w[5];
-							Interp1(dp+dpL+dpL, w[5], w[7]);
-							dest[dp+dpL+dpL+1] = w[5];
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp2(dp, w[5], w[4], w[2]);
 							Interp1(dp+dpL, w[4], w[5]);
-							Interp5(dp+dpL+dpL, w[8], w[4]);
-							Interp1(dp+dpL+dpL+1, w[5], w[8]);
+							Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[8], w[4]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
 						Interp1(dp+1, w[5], w[2]);
 						Interp2(dp+2, w[5], w[2], w[6]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 42:
@@ -3696,20 +3746,20 @@ var hq3x = function( width, height ) {
 							Interp1(dp, w[5], w[1]);
 							dest[dp+1] = w[5];
 							dest[dp+dpL] = w[5];
-							Interp1(dp+dpL+dpL, w[5], w[8]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
 						}
 						else
 						{
 							Interp5(dp, w[4], w[2]);
 							Interp1(dp+1, w[5], w[2]);
 							Interp1(dp+dpL, w[4], w[5]);
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
 						Interp1(dp+2, w[5], w[3]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 14:
@@ -3731,9 +3781,9 @@ var hq3x = function( width, height ) {
 						}
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 67:
@@ -3744,9 +3794,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 70:
@@ -3757,9 +3807,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 28:
@@ -3770,9 +3820,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 152:
@@ -3783,9 +3833,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 194:
@@ -3796,9 +3846,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 98:
@@ -3809,9 +3859,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 56:
@@ -3822,9 +3872,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 25:
@@ -3835,9 +3885,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 26:
@@ -3865,9 +3915,9 @@ var hq3x = function( width, height ) {
 							Interp3(dp+dpL+2, w[5], w[6]);
 						}
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 82:
@@ -3887,16 +3937,16 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						if (Diff(w[6], w[8]))
 						{
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -3910,23 +3960,23 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -3949,15 +3999,15 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL+2, w[5], w[6]);
 						if (Diff(w[8], w[4]))
 						{
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 27:
@@ -3977,9 +4027,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+2, w[5], w[3]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 86:
@@ -3999,9 +4049,9 @@ var hq3x = function( width, height ) {
 						}
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 216:
@@ -4011,18 +4061,18 @@ var hq3x = function( width, height ) {
 						Interp1(dp+2, w[5], w[3]);
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -4036,16 +4086,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 30:
@@ -4065,9 +4115,9 @@ var hq3x = function( width, height ) {
 						}
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 210:
@@ -4077,18 +4127,18 @@ var hq3x = function( width, height ) {
 						Interp1(dp+2, w[5], w[3]);
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -4102,16 +4152,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 75:
@@ -4131,9 +4181,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+2, w[5], w[3]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 29:
@@ -4144,9 +4194,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 198:
@@ -4157,9 +4207,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 184:
@@ -4170,9 +4220,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 99:
@@ -4183,9 +4233,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 57:
@@ -4196,9 +4246,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 71:
@@ -4209,9 +4259,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 156:
@@ -4222,9 +4272,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 226:
@@ -4235,9 +4285,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 60:
@@ -4248,9 +4298,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 195:
@@ -4261,9 +4311,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 102:
@@ -4274,9 +4324,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 153:
@@ -4287,9 +4337,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 58:
@@ -4314,9 +4364,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 83:
@@ -4334,15 +4384,15 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -4356,20 +4406,20 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL+2] = w[5];
 						if (Diff(w[8], w[4]))
 						{
-							Interp1(dp+dpL+dpL, w[5], w[7]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -4390,14 +4440,14 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL+2, w[5], w[6]);
 						if (Diff(w[8], w[4]))
 						{
-							Interp1(dp+dpL+dpL, w[5], w[7]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 78:
@@ -4417,14 +4467,14 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL+2, w[5], w[6]);
 						if (Diff(w[8], w[4]))
 						{
-							Interp1(dp+dpL+dpL, w[5], w[7]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 154:
@@ -4449,9 +4499,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 114:
@@ -4469,15 +4519,15 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -4491,20 +4541,20 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL+2] = w[5];
 						if (Diff(w[8], w[4]))
 						{
-							Interp1(dp+dpL+dpL, w[5], w[7]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -4532,20 +4582,20 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL+2] = w[5];
 						if (Diff(w[8], w[4]))
 						{
-							Interp1(dp+dpL+dpL, w[5], w[7]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -4568,9 +4618,9 @@ var hq3x = function( width, height ) {
 						}
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 182:
@@ -4581,20 +4631,20 @@ var hq3x = function( width, height ) {
 							dest[dp+1] = w[5];
 							dest[dp+2] = w[5];
 							dest[dp+dpL+2] = w[5];
-							Interp1(dp+dpL+dpL+2, w[5], w[8]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						}
 						else
 						{
 							Interp1(dp+1, w[5], w[2]);
 							Interp5(dp+2, w[2], w[6]);
 							Interp1(dp+dpL+2, w[6], w[5]);
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						Interp1(dp, w[5], w[1]);
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						break;
 					}
 				case 213:
@@ -4604,21 +4654,21 @@ var hq3x = function( width, height ) {
 						{
 							Interp1(dp+2, w[5], w[2]);
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp2(dp+2, w[5], w[2], w[6]);
 							Interp1(dp+dpL+2, w[6], w[5]);
-							Interp1(dp+dpL+dpL+1, w[5], w[8]);
-							Interp5(dp+dpL+dpL+2, w[6], w[8]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp5(dp+(dpL << 1 /*==dpL * 2*/)+2, w[6], w[8]);
 						}
 						Interp2(dp, w[5], w[4], w[2]);
 						Interp1(dp+1, w[5], w[2]);
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						break;
 					}
 				case 241:
@@ -4627,16 +4677,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							Interp1(dp+dpL+dpL, w[5], w[4]);
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp1(dp+dpL+2, w[5], w[6]);
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp1(dp+dpL+dpL+1, w[8], w[5]);
-							Interp5(dp+dpL+dpL+2, w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[8], w[5]);
+							Interp5(dp+(dpL << 1 /*==dpL * 2*/)+2, w[6], w[8]);
 						}
 						Interp2(dp, w[5], w[4], w[2]);
 						Interp1(dp+1, w[5], w[2]);
@@ -4651,16 +4701,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							Interp1(dp+dpL+dpL+2, w[5], w[6]);
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						}
 						else
 						{
 							Interp1(dp+dpL, w[5], w[4]);
-							Interp5(dp+dpL+dpL, w[8], w[4]);
-							Interp1(dp+dpL+dpL+1, w[8], w[5]);
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[8], w[4]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[8], w[5]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						Interp1(dp, w[5], w[1]);
 						Interp1(dp+1, w[5], w[2]);
@@ -4676,21 +4726,21 @@ var hq3x = function( width, height ) {
 						{
 							Interp1(dp, w[5], w[2]);
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp2(dp, w[5], w[4], w[2]);
 							Interp1(dp+dpL, w[4], w[5]);
-							Interp5(dp+dpL+dpL, w[8], w[4]);
-							Interp1(dp+dpL+dpL+1, w[5], w[8]);
+							Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[8], w[4]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
 						Interp1(dp+1, w[5], w[2]);
 						Interp2(dp+2, w[5], w[2], w[6]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 171:
@@ -4701,20 +4751,20 @@ var hq3x = function( width, height ) {
 							dest[dp] = w[5];
 							dest[dp+1] = w[5];
 							dest[dp+dpL] = w[5];
-							Interp1(dp+dpL+dpL, w[5], w[8]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
 						}
 						else
 						{
 							Interp5(dp, w[4], w[2]);
 							Interp1(dp+1, w[5], w[2]);
 							Interp1(dp+dpL, w[4], w[5]);
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
 						Interp1(dp+2, w[5], w[3]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 143:
@@ -4736,9 +4786,9 @@ var hq3x = function( width, height ) {
 						}
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 124:
@@ -4751,16 +4801,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 203:
@@ -4780,9 +4830,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+2, w[5], w[3]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 62:
@@ -4802,9 +4852,9 @@ var hq3x = function( width, height ) {
 						}
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 211:
@@ -4814,18 +4864,18 @@ var hq3x = function( width, height ) {
 						Interp1(dp+2, w[5], w[3]);
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -4846,9 +4896,9 @@ var hq3x = function( width, height ) {
 						}
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 217:
@@ -4858,18 +4908,18 @@ var hq3x = function( width, height ) {
 						Interp1(dp+2, w[5], w[3]);
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -4883,16 +4933,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 155:
@@ -4912,9 +4962,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+2, w[5], w[3]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 188:
@@ -4925,9 +4975,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 185:
@@ -4938,9 +4988,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 61:
@@ -4951,9 +5001,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 157:
@@ -4964,9 +5014,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 103:
@@ -4977,9 +5027,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 227:
@@ -4990,9 +5040,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 230:
@@ -5003,9 +5053,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 199:
@@ -5016,9 +5066,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 220:
@@ -5030,23 +5080,23 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL+1] = w[5];
 						if (Diff(w[8], w[4]))
 						{
-							Interp1(dp+dpL+dpL, w[5], w[7]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -5074,9 +5124,9 @@ var hq3x = function( width, height ) {
 						}
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 234:
@@ -5096,16 +5146,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 242:
@@ -5122,18 +5172,18 @@ var hq3x = function( width, height ) {
 						}
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -5161,9 +5211,9 @@ var hq3x = function( width, height ) {
 						}
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 121:
@@ -5176,22 +5226,22 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
 						if (Diff(w[6], w[8]))
 						{
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -5212,15 +5262,15 @@ var hq3x = function( width, height ) {
 						}
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -5243,14 +5293,14 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL+2, w[5], w[6]);
 						if (Diff(w[8], w[4]))
 						{
-							Interp1(dp+dpL+dpL, w[5], w[7]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 122:
@@ -5277,22 +5327,22 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
 						if (Diff(w[6], w[8]))
 						{
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -5322,20 +5372,20 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL+1] = w[5];
 						if (Diff(w[8], w[4]))
 						{
-							Interp1(dp+dpL+dpL, w[5], w[7]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -5362,23 +5412,23 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL+1] = w[5];
 						if (Diff(w[8], w[4]))
 						{
-							Interp1(dp+dpL+dpL, w[5], w[7]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -5408,20 +5458,20 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL+2] = w[5];
 						if (Diff(w[8], w[4]))
 						{
-							Interp1(dp+dpL+dpL, w[5], w[7]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -5433,9 +5483,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 167:
@@ -5446,9 +5496,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 173:
@@ -5459,9 +5509,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 181:
@@ -5472,9 +5522,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 186:
@@ -5499,9 +5549,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 115:
@@ -5519,15 +5569,15 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -5541,20 +5591,20 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL+2] = w[5];
 						if (Diff(w[8], w[4]))
 						{
-							Interp1(dp+dpL+dpL, w[5], w[7]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -5575,14 +5625,14 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL+2, w[5], w[6]);
 						if (Diff(w[8], w[4]))
 						{
-							Interp1(dp+dpL+dpL, w[5], w[7]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 205:
@@ -5596,14 +5646,14 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL+2, w[5], w[6]);
 						if (Diff(w[8], w[4]))
 						{
-							Interp1(dp+dpL+dpL, w[5], w[7]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 174:
@@ -5622,9 +5672,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 179:
@@ -5643,9 +5693,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 117:
@@ -5657,15 +5707,15 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							Interp1(dp+dpL+dpL+2, w[5], w[9]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -5677,9 +5727,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 231:
@@ -5690,9 +5740,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 126:
@@ -5714,16 +5764,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 219:
@@ -5742,18 +5792,18 @@ var hq3x = function( width, height ) {
 						}
 						Interp1(dp+2, w[5], w[3]);
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -5763,21 +5813,21 @@ var hq3x = function( width, height ) {
 						{
 							Interp1(dp, w[5], w[2]);
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp2(dp, w[5], w[4], w[2]);
 							Interp1(dp+dpL, w[4], w[5]);
-							Interp5(dp+dpL+dpL, w[8], w[4]);
-							Interp1(dp+dpL+dpL+1, w[5], w[8]);
+							Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[8], w[4]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
 						Interp1(dp+1, w[5], w[2]);
 						Interp1(dp+2, w[5], w[2]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 221:
@@ -5786,21 +5836,21 @@ var hq3x = function( width, height ) {
 						{
 							Interp1(dp+2, w[5], w[2]);
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp2(dp+2, w[5], w[2], w[6]);
 							Interp1(dp+dpL+2, w[6], w[5]);
-							Interp1(dp+dpL+dpL+1, w[5], w[8]);
-							Interp5(dp+dpL+dpL+2, w[6], w[8]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp5(dp+(dpL << 1 /*==dpL * 2*/)+2, w[6], w[8]);
 						}
 						Interp1(dp, w[5], w[2]);
 						Interp1(dp+1, w[5], w[2]);
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						break;
 					}
 				case 207:
@@ -5821,9 +5871,9 @@ var hq3x = function( width, height ) {
 						}
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 238:
@@ -5831,16 +5881,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							Interp1(dp+dpL+dpL+2, w[5], w[6]);
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						}
 						else
 						{
 							Interp1(dp+dpL, w[5], w[4]);
-							Interp5(dp+dpL+dpL, w[8], w[4]);
-							Interp1(dp+dpL+dpL+1, w[8], w[5]);
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[8], w[4]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[8], w[5]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						Interp1(dp, w[5], w[1]);
 						dest[dp+1] = w[5];
@@ -5856,20 +5906,20 @@ var hq3x = function( width, height ) {
 							dest[dp+1] = w[5];
 							dest[dp+2] = w[5];
 							dest[dp+dpL+2] = w[5];
-							Interp1(dp+dpL+dpL+2, w[5], w[8]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						}
 						else
 						{
 							Interp1(dp+1, w[5], w[2]);
 							Interp5(dp+2, w[2], w[6]);
 							Interp1(dp+dpL+2, w[6], w[5]);
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						Interp1(dp, w[5], w[1]);
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						break;
 					}
 				case 187:
@@ -5879,20 +5929,20 @@ var hq3x = function( width, height ) {
 							dest[dp] = w[5];
 							dest[dp+1] = w[5];
 							dest[dp+dpL] = w[5];
-							Interp1(dp+dpL+dpL, w[5], w[8]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
 						}
 						else
 						{
 							Interp5(dp, w[4], w[2]);
 							Interp1(dp+1, w[5], w[2]);
 							Interp1(dp+dpL, w[4], w[5]);
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
 						Interp1(dp+2, w[5], w[3]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 243:
@@ -5900,16 +5950,16 @@ var hq3x = function( width, height ) {
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							Interp1(dp+dpL+dpL, w[5], w[4]);
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp1(dp+dpL+2, w[5], w[6]);
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp1(dp+dpL+dpL+1, w[8], w[5]);
-							Interp5(dp+dpL+dpL+2, w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[8], w[5]);
+							Interp5(dp+(dpL << 1 /*==dpL * 2*/)+2, w[6], w[8]);
 						}
 						Interp1(dp, w[5], w[4]);
 						dest[dp+1] = w[5];
@@ -5936,9 +5986,9 @@ var hq3x = function( width, height ) {
 						}
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 237:
@@ -5952,14 +6002,14 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL+2, w[5], w[6]);
 						if (Diff(w[8], w[4]))
 						{
-							dest[dp+dpL+dpL] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 175:
@@ -5978,9 +6028,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						Interp1(dp+dpL+2, w[5], w[6]);
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						break;
 					}
 				case 183:
@@ -5999,9 +6049,9 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 245:
@@ -6013,15 +6063,15 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -6034,23 +6084,23 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -6072,15 +6122,15 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL+2] = w[5];
 						if (Diff(w[8], w[4]))
 						{
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 95:
@@ -6107,9 +6157,9 @@ var hq3x = function( width, height ) {
 							Interp3(dp+dpL+2, w[5], w[6]);
 						}
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 222:
@@ -6128,16 +6178,16 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						if (Diff(w[6], w[8]))
 						{
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -6151,21 +6201,21 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -6178,22 +6228,22 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL+1] = w[5];
 						if (Diff(w[8], w[4]))
 						{
-							dest[dp+dpL+dpL] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -6215,14 +6265,14 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL+2, w[5], w[6]);
 						if (Diff(w[8], w[4]))
 						{
-							dest[dp+dpL+dpL] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 111:
@@ -6242,15 +6292,15 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL+2, w[5], w[6]);
 						if (Diff(w[8], w[4]))
 						{
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 63:
@@ -6276,9 +6326,9 @@ var hq3x = function( width, height ) {
 						}
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 159:
@@ -6304,9 +6354,9 @@ var hq3x = function( width, height ) {
 						}
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 215:
@@ -6324,16 +6374,16 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						if (Diff(w[6], w[8]))
 						{
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -6353,15 +6403,15 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -6382,24 +6432,24 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -6413,20 +6463,20 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL+2] = w[5];
 						if (Diff(w[8], w[4]))
 						{
-							dest[dp+dpL+dpL] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -6447,24 +6497,24 @@ var hq3x = function( width, height ) {
 						if (Diff(w[8], w[4]))
 						{
 							dest[dp+dpL] = w[5];
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL, w[5], w[4]);
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
 						if (Diff(w[6], w[8]))
 						{
 							dest[dp+dpL+2] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
 							Interp3(dp+dpL+2, w[5], w[6]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -6485,14 +6535,14 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL+2, w[5], w[6]);
 						if (Diff(w[8], w[4]))
 						{
-							dest[dp+dpL+dpL] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL+2, w[5], w[6]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
 						break;
 					}
 				case 127:
@@ -6522,15 +6572,15 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL+1] = w[5];
 						if (Diff(w[8], w[4]))
 						{
-							dest[dp+dpL+dpL] = w[5];
-							dest[dp+dpL+dpL+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						}
 						else
 						{
-							Interp4(dp+dpL+dpL, w[5], w[8], w[4]);
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
 						}
-						Interp1(dp+dpL+dpL+2, w[5], w[9]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
 						break;
 					}
 				case 191:
@@ -6555,9 +6605,9 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL] = w[5];
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[8]);
-						Interp1(dp+dpL+dpL+1, w[5], w[8]);
-						Interp1(dp+dpL+dpL+2, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
 						break;
 					}
 				case 223:
@@ -6585,16 +6635,16 @@ var hq3x = function( width, height ) {
 							Interp3(dp+dpL+2, w[5], w[6]);
 						}
 						dest[dp+dpL+1] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[7]);
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
 						if (Diff(w[6], w[8]))
 						{
-							dest[dp+dpL+dpL+1] = w[5];
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
-							Interp3(dp+dpL+dpL+1, w[5], w[8]);
-							Interp4(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+							Interp4(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -6613,15 +6663,15 @@ var hq3x = function( width, height ) {
 						Interp1(dp+dpL, w[5], w[4]);
 						dest[dp+dpL+1] = w[5];
 						dest[dp+dpL+2] = w[5];
-						Interp1(dp+dpL+dpL, w[5], w[4]);
-						dest[dp+dpL+dpL+1] = w[5];
+						Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -6649,20 +6699,20 @@ var hq3x = function( width, height ) {
 						dest[dp+dpL+2] = w[5];
 						if (Diff(w[8], w[4]))
 						{
-							dest[dp+dpL+dpL] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL, w[5], w[8], w[4]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8], w[4]);
 						}
-						dest[dp+dpL+dpL+1] = w[5];
+						dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
 						if (Diff(w[6], w[8]))
 						{
-							dest[dp+dpL+dpL+2] = w[5];
+							dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
 						}
 						else
 						{
-							Interp2(dp+dpL+dpL+2, w[5], w[6], w[8]);
+							Interp2(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
 						}
 						break;
 					}
@@ -6670,7 +6720,8 @@ var hq3x = function( width, height ) {
 			sp++;
 			dp += 3;
 		}
-		dp += (dpL * 2);
+		//dp += (dpL * 2); optimized
+		dp += (dpL << 1);
 	}
 };
 
@@ -6697,10 +6748,28 @@ var hq4x = function( width, height ) {
 		i, j, k,
 		prevline, nextline,
 		w = [],
-		dpL = width * 4,
+		//dpL = width * 4, optimized
+		dpL = width << 2,
 
 		dp = 0,
 		sp = 0;
+
+	// internal to local optimization
+	var MathAbs = MathAbs,
+		RGBtoYUV = RGBtoYUV,
+		Diff = Diff,
+		Interp1 = Interp1,
+		Interp2 = Interp2,
+		Interp3 = Interp3,
+		Interp4 = Interp4,
+		Interp5 = Interp5,
+		Interp6 = Interp6,
+		Interp7 = Interp7,
+		Interp8 = Interp8,
+		Interp9 = Interp9,
+		Interp10 = Interp10,
+		src = src,
+		dest = dest;
 
     //   +----+----+----+
     //   |    |    |    |
@@ -6715,8 +6784,8 @@ var hq4x = function( width, height ) {
 
     for (j=0; j<height; j++)
     {
-        if (j>0)      prevline = -width; else prevline = 0;
-        if (j<height-1) nextline =  width; else nextline = 0;
+		prevline = j>0 ? -width : 0;
+		nextline = j<height-1 ? width : 0;
 
         for (i=0; i<width; i++)
         {
@@ -6755,16 +6824,17 @@ var hq4x = function( width, height ) {
 
             YUV1 = RGBtoYUV(w[5]);
 
-            for (k=1; k<=9; k++)
+            //for (k=1; k<=9; k++) optimized
+            for (k=1; k < 10; k++) // k<=9
             {
-                if (k==5) continue;
+                if (k===5) continue;
 
-                if ( w[k] != w[5] )
+                if ( w[k] !== w[5] )
                 {
                     YUV2 = RGBtoYUV(w[k]);
-                    if ( ( Math.abs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
-                            ( Math.abs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
-                            ( Math.abs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
+                    if ( ( MathAbs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
+                            ( MathAbs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
+                            ( MathAbs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
                         pattern |= flag;
                 }
                 flag <<= 1;
@@ -6797,14 +6867,14 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 2:
@@ -6820,14 +6890,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 16:
@@ -6843,14 +6913,14 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 64:
@@ -6866,14 +6936,14 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 8:
@@ -6889,14 +6959,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 3:
@@ -6912,14 +6982,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 6:
@@ -6935,14 +7005,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 20:
@@ -6958,14 +7028,14 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 144:
@@ -6981,14 +7051,14 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 192:
@@ -7004,14 +7074,14 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 96:
@@ -7027,14 +7097,14 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 40:
@@ -7050,14 +7120,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 9:
@@ -7073,14 +7143,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 18:
@@ -7104,14 +7174,14 @@ var hq4x = function( width, height ) {
                         }
                         Interp6(dp+dpL, w[5], w[4], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 80:
@@ -7125,24 +7195,24 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 72:
@@ -7158,22 +7228,22 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 10:
@@ -7197,14 +7267,14 @@ var hq4x = function( width, height ) {
                         Interp8(dp+3, w[5], w[3]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 66:
@@ -7217,14 +7287,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 24:
@@ -7237,14 +7307,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 7:
@@ -7259,14 +7329,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 148:
@@ -7281,14 +7351,14 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 224:
@@ -7303,14 +7373,14 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 41:
@@ -7325,14 +7395,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 22:
@@ -7355,14 +7425,14 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL, w[5], w[4], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
                         dest[dp+dpL+2] = w[5];
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 208:
@@ -7376,23 +7446,23 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        dest[dp+dpL+dpL+2] = w[5];
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 104:
@@ -7408,21 +7478,21 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 11:
@@ -7445,14 +7515,14 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 19:
@@ -7478,14 +7548,14 @@ var hq4x = function( width, height ) {
                         }
                         Interp8(dp+dpL, w[5], w[4]);
                         Interp3(dp+dpL+1, w[5], w[4]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 146:
@@ -7499,8 +7569,8 @@ var hq4x = function( width, height ) {
                             Interp8(dp+3, w[5], w[3]);
                             Interp3(dp+dpL+2, w[5], w[3]);
                             Interp1(dp+dpL+3, w[5], w[3]);
-                            Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         }
                         else
                         {
@@ -7508,17 +7578,17 @@ var hq4x = function( width, height ) {
                             Interp5(dp+3, w[2], w[6]);
                             Interp7(dp+dpL+2, w[5], w[6], w[2]);
                             Interp8(dp+dpL+3, w[6], w[2]);
-                            Interp1(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp1(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp1(dp+(dpL * 3)+3, w[5], w[6]);
                         }
                         Interp6(dp+dpL, w[5], w[4], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
                         break;
                     }
                 case 84:
@@ -7531,27 +7601,27 @@ var hq4x = function( width, height ) {
                         {
                             Interp8(dp+3, w[5], w[2]);
                             Interp3(dp+dpL+3, w[5], w[2]);
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
                             Interp1(dp+3, w[5], w[6]);
                             Interp1(dp+dpL+3, w[6], w[5]);
-                            Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                            Interp8(dp+dpL+dpL+3, w[6], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+2, w[8], w[5], w[6]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                            Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[8]);
+                            Interp2(dp+(dpL * 3)+2, w[8], w[5], w[6]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
                         Interp6(dp+dpL, w[5], w[4], w[2]);
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 112:
@@ -7565,25 +7635,25 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                            Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp8(dp+(dpL * 3), w[5], w[4]);
+                            Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                            Interp2(dp+dpL+dpL+3, w[6], w[5], w[8]);
-                            Interp1(dp+dpL+dpL+dpL, w[5], w[8]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[8], w[5]);
-                            Interp8(dp+dpL+dpL+dpL+2, w[8], w[6]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                            Interp2(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5], w[8]);
+                            Interp1(dp+(dpL * 3), w[5], w[8]);
+                            Interp1(dp+(dpL * 3)+1, w[8], w[5]);
+                            Interp8(dp+(dpL * 3)+2, w[8], w[6]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
                         break;
                     }
@@ -7600,24 +7670,24 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                            Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL, w[4], w[5], w[8]);
-                            Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp8(dp+dpL+dpL+dpL+1, w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp1(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                            Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5], w[8]);
+                            Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp8(dp+(dpL * 3)+1, w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp1(dp+(dpL * 3)+3, w[5], w[8]);
                         }
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
                         break;
                     }
                 case 73:
@@ -7627,19 +7697,19 @@ var hq4x = function( width, height ) {
                         {
                             Interp8(dp, w[5], w[2]);
                             Interp3(dp+dpL, w[5], w[2]);
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
                             Interp1(dp, w[5], w[4]);
                             Interp1(dp+dpL, w[4], w[5]);
-                            Interp8(dp+dpL+dpL, w[4], w[8]);
-                            Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp2(dp+dpL+dpL+dpL+1, w[8], w[5], w[4]);
+                            Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[8]);
+                            Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp2(dp+(dpL * 3)+1, w[8], w[5], w[4]);
                         }
                         Interp8(dp+1, w[5], w[2]);
                         Interp6(dp+2, w[5], w[2], w[6]);
@@ -7647,10 +7717,10 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 42:
@@ -7662,8 +7732,8 @@ var hq4x = function( width, height ) {
                             Interp1(dp+1, w[5], w[1]);
                             Interp1(dp+dpL, w[5], w[1]);
                             Interp3(dp+dpL+1, w[5], w[1]);
-                            Interp3(dp+dpL+dpL, w[5], w[8]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                            Interp8(dp+(dpL * 3), w[5], w[8]);
                         }
                         else
                         {
@@ -7671,19 +7741,19 @@ var hq4x = function( width, height ) {
                             Interp2(dp+1, w[2], w[5], w[4]);
                             Interp8(dp+dpL, w[4], w[2]);
                             Interp7(dp+dpL+1, w[5], w[4], w[2]);
-                            Interp1(dp+dpL+dpL, w[4], w[5]);
-                            Interp1(dp+dpL+dpL+dpL, w[5], w[4]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp1(dp+(dpL * 3), w[5], w[4]);
                         }
                         Interp1(dp+2, w[5], w[3]);
                         Interp8(dp+3, w[5], w[3]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 14:
@@ -7709,14 +7779,14 @@ var hq4x = function( width, height ) {
                         }
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 67:
@@ -7729,14 +7799,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 70:
@@ -7749,14 +7819,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 28:
@@ -7769,14 +7839,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 152:
@@ -7789,14 +7859,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 194:
@@ -7809,14 +7879,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 98:
@@ -7829,14 +7899,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 56:
@@ -7849,14 +7919,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 25:
@@ -7869,14 +7939,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 26:
@@ -7908,14 +7978,14 @@ var hq4x = function( width, height ) {
                         }
                         dest[dp+dpL+1] = w[5];
                         dest[dp+dpL+2] = w[5];
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 82:
@@ -7938,23 +8008,23 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL, w[5], w[4], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
                         dest[dp+dpL+2] = w[5];
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        dest[dp+dpL+dpL+2] = w[5];
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 88:
@@ -7970,29 +8040,29 @@ var hq4x = function( width, height ) {
                         Interp1(dp+dpL+3, w[5], w[3]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        dest[dp+dpL+dpL+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
                         break;
                     }
@@ -8018,21 +8088,21 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 27:
@@ -8054,14 +8124,14 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 86:
@@ -8083,14 +8153,14 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL, w[5], w[4], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
                         dest[dp+dpL+2] = w[5];
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 216:
@@ -8103,23 +8173,23 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        dest[dp+dpL+dpL+2] = w[5];
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 106:
@@ -8134,21 +8204,21 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 30:
@@ -8170,14 +8240,14 @@ var hq4x = function( width, height ) {
                         Interp1(dp+dpL, w[5], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
                         dest[dp+dpL+2] = w[5];
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 210:
@@ -8190,23 +8260,23 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        dest[dp+dpL+dpL+2] = w[5];
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 120:
@@ -8221,21 +8291,21 @@ var hq4x = function( width, height ) {
                         Interp1(dp+dpL+3, w[5], w[3]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 75:
@@ -8257,14 +8327,14 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 29:
@@ -8277,14 +8347,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 198:
@@ -8297,14 +8367,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 184:
@@ -8317,14 +8387,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 99:
@@ -8337,14 +8407,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 57:
@@ -8357,14 +8427,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 71:
@@ -8377,14 +8447,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 156:
@@ -8397,14 +8467,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 226:
@@ -8417,14 +8487,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 60:
@@ -8437,14 +8507,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 195:
@@ -8457,14 +8527,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 102:
@@ -8477,14 +8547,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 153:
@@ -8497,14 +8567,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 58:
@@ -8537,14 +8607,14 @@ var hq4x = function( width, height ) {
                             dest[dp+dpL+2] = w[5];
                             Interp1(dp+dpL+3, w[5], w[6]);
                         }
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 83:
@@ -8567,24 +8637,24 @@ var hq4x = function( width, height ) {
                         }
                         Interp8(dp+dpL, w[5], w[4]);
                         Interp3(dp+dpL+1, w[5], w[4]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp1(dp+dpL+dpL+3, w[5], w[6]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[8]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 92:
@@ -8599,31 +8669,31 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+3, w[5], w[2]);
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[4]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[8]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[8]);
                         }
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp1(dp+dpL+dpL+3, w[5], w[6]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[8]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -8649,22 +8719,22 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[4]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[8]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[8]);
                         }
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 78:
@@ -8689,22 +8759,22 @@ var hq4x = function( width, height ) {
                         Interp8(dp+dpL+3, w[5], w[6]);
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[4]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[8]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[8]);
                         }
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 154:
@@ -8737,14 +8807,14 @@ var hq4x = function( width, height ) {
                             dest[dp+dpL+2] = w[5];
                             Interp1(dp+dpL+3, w[5], w[6]);
                         }
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 114:
@@ -8767,24 +8837,24 @@ var hq4x = function( width, height ) {
                         }
                         Interp6(dp+dpL, w[5], w[4], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp1(dp+dpL+dpL+3, w[5], w[6]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[8]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
                         break;
                     }
                 case 89:
@@ -8799,31 +8869,31 @@ var hq4x = function( width, height ) {
                         Interp1(dp+dpL+3, w[5], w[3]);
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[4]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[8]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[8]);
                         }
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp1(dp+dpL+dpL+3, w[5], w[6]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[8]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -8859,31 +8929,31 @@ var hq4x = function( width, height ) {
                         }
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[4]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[8]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[8]);
                         }
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp1(dp+dpL+dpL+3, w[5], w[6]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[8]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -8910,14 +8980,14 @@ var hq4x = function( width, height ) {
                         }
                         Interp8(dp+dpL, w[5], w[4]);
                         Interp3(dp+dpL+1, w[5], w[4]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 182:
@@ -8931,8 +9001,8 @@ var hq4x = function( width, height ) {
                             dest[dp+3] = w[5];
                             dest[dp+dpL+2] = w[5];
                             dest[dp+dpL+3] = w[5];
-                            Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         }
                         else
                         {
@@ -8940,17 +9010,17 @@ var hq4x = function( width, height ) {
                             Interp5(dp+3, w[2], w[6]);
                             Interp7(dp+dpL+2, w[5], w[6], w[2]);
                             Interp8(dp+dpL+3, w[6], w[2]);
-                            Interp1(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp1(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp1(dp+(dpL * 3)+3, w[5], w[6]);
                         }
                         Interp6(dp+dpL, w[5], w[4], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
                         break;
                     }
                 case 213:
@@ -8963,27 +9033,27 @@ var hq4x = function( width, height ) {
                         {
                             Interp8(dp+3, w[5], w[2]);
                             Interp3(dp+dpL+3, w[5], w[2]);
-                            dest[dp+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
                             Interp1(dp+3, w[5], w[6]);
                             Interp1(dp+dpL+3, w[6], w[5]);
-                            Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                            Interp8(dp+dpL+dpL+3, w[6], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+2, w[8], w[5], w[6]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                            Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[8]);
+                            Interp2(dp+(dpL * 3)+2, w[8], w[5], w[6]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
                         Interp6(dp+dpL, w[5], w[4], w[2]);
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 241:
@@ -8997,25 +9067,25 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+3] = w[5];
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                            Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            Interp8(dp+(dpL * 3), w[5], w[4]);
+                            Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                            Interp2(dp+dpL+dpL+3, w[6], w[5], w[8]);
-                            Interp1(dp+dpL+dpL+dpL, w[5], w[8]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[8], w[5]);
-                            Interp8(dp+dpL+dpL+dpL+2, w[8], w[6]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                            Interp2(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5], w[8]);
+                            Interp1(dp+(dpL * 3), w[5], w[8]);
+                            Interp1(dp+(dpL * 3)+1, w[8], w[5]);
+                            Interp8(dp+(dpL * 3)+2, w[8], w[6]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
                         break;
                     }
@@ -9032,24 +9102,24 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+1] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
-                            Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
+                            Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL, w[4], w[5], w[8]);
-                            Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp8(dp+dpL+dpL+dpL+1, w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp1(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                            Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5], w[8]);
+                            Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp8(dp+(dpL * 3)+1, w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp1(dp+(dpL * 3)+3, w[5], w[8]);
                         }
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
                         break;
                     }
                 case 109:
@@ -9059,19 +9129,19 @@ var hq4x = function( width, height ) {
                         {
                             Interp8(dp, w[5], w[2]);
                             Interp3(dp+dpL, w[5], w[2]);
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+1] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
                             Interp1(dp, w[5], w[4]);
                             Interp1(dp+dpL, w[4], w[5]);
-                            Interp8(dp+dpL+dpL, w[4], w[8]);
-                            Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp2(dp+dpL+dpL+dpL+1, w[8], w[5], w[4]);
+                            Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[8]);
+                            Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp2(dp+(dpL * 3)+1, w[8], w[5], w[4]);
                         }
                         Interp8(dp+1, w[5], w[2]);
                         Interp6(dp+2, w[5], w[2], w[6]);
@@ -9079,10 +9149,10 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 171:
@@ -9094,8 +9164,8 @@ var hq4x = function( width, height ) {
                             dest[dp+1] = w[5];
                             dest[dp+dpL] = w[5];
                             dest[dp+dpL+1] = w[5];
-                            Interp3(dp+dpL+dpL, w[5], w[8]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                            Interp8(dp+(dpL * 3), w[5], w[8]);
                         }
                         else
                         {
@@ -9103,19 +9173,19 @@ var hq4x = function( width, height ) {
                             Interp2(dp+1, w[2], w[5], w[4]);
                             Interp8(dp+dpL, w[4], w[2]);
                             Interp7(dp+dpL+1, w[5], w[4], w[2]);
-                            Interp1(dp+dpL+dpL, w[4], w[5]);
-                            Interp1(dp+dpL+dpL+dpL, w[5], w[4]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp1(dp+(dpL * 3), w[5], w[4]);
                         }
                         Interp1(dp+2, w[5], w[3]);
                         Interp8(dp+3, w[5], w[3]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 143:
@@ -9141,14 +9211,14 @@ var hq4x = function( width, height ) {
                         }
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 124:
@@ -9163,21 +9233,21 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+3, w[5], w[2]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 203:
@@ -9199,14 +9269,14 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 62:
@@ -9228,14 +9298,14 @@ var hq4x = function( width, height ) {
                         Interp1(dp+dpL, w[5], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
                         dest[dp+dpL+2] = w[5];
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 211:
@@ -9248,23 +9318,23 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        dest[dp+dpL+dpL+2] = w[5];
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 118:
@@ -9286,14 +9356,14 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL, w[5], w[4], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
                         dest[dp+dpL+2] = w[5];
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 217:
@@ -9306,23 +9376,23 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        dest[dp+dpL+dpL+2] = w[5];
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 110:
@@ -9337,21 +9407,21 @@ var hq4x = function( width, height ) {
                         Interp8(dp+dpL+3, w[5], w[6]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 155:
@@ -9373,14 +9443,14 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 188:
@@ -9393,14 +9463,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 185:
@@ -9413,14 +9483,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 61:
@@ -9433,14 +9503,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 157:
@@ -9453,14 +9523,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 103:
@@ -9473,14 +9543,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 227:
@@ -9493,14 +9563,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 230:
@@ -9513,14 +9583,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[1]);
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 199:
@@ -9533,14 +9603,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 220:
@@ -9555,30 +9625,30 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+3, w[5], w[2]);
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[4]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[8]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[8]);
                         }
-                        dest[dp+dpL+dpL+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
                         break;
                     }
@@ -9611,14 +9681,14 @@ var hq4x = function( width, height ) {
                             Interp5(dp+dpL+3, w[6], w[5]);
                         }
                         dest[dp+dpL+2] = w[5];
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 234:
@@ -9643,21 +9713,21 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 242:
@@ -9680,23 +9750,23 @@ var hq4x = function( width, height ) {
                         }
                         Interp6(dp+dpL, w[5], w[4], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        dest[dp+dpL+dpL+2] = w[5];
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
                         break;
                     }
                 case 59:
@@ -9728,14 +9798,14 @@ var hq4x = function( width, height ) {
                             Interp1(dp+dpL+3, w[5], w[6]);
                         }
                         dest[dp+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 121:
@@ -9750,30 +9820,30 @@ var hq4x = function( width, height ) {
                         Interp1(dp+dpL+3, w[5], w[3]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp1(dp+dpL+dpL+3, w[5], w[6]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[8]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -9796,24 +9866,24 @@ var hq4x = function( width, height ) {
                         Interp8(dp+dpL, w[5], w[4]);
                         Interp3(dp+dpL+1, w[5], w[4]);
                         dest[dp+dpL+2] = w[5];
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp1(dp+dpL+dpL+3, w[5], w[6]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[8]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 79:
@@ -9837,22 +9907,22 @@ var hq4x = function( width, height ) {
                         Interp8(dp+dpL+3, w[5], w[6]);
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[4]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[8]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[8]);
                         }
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 122:
@@ -9887,30 +9957,30 @@ var hq4x = function( width, height ) {
                         }
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp1(dp+dpL+dpL+3, w[5], w[6]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[8]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -9945,31 +10015,31 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+2] = w[5];
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[4]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[8]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[8]);
                         }
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp1(dp+dpL+dpL+3, w[5], w[6]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[8]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -10005,30 +10075,30 @@ var hq4x = function( width, height ) {
                         }
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[4]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[8]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[8]);
                         }
-                        dest[dp+dpL+dpL+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
                         break;
                     }
@@ -10063,31 +10133,31 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[4]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[8]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[8]);
                         }
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp1(dp+dpL+dpL+3, w[5], w[6]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[8]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -10101,14 +10171,14 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 167:
@@ -10121,14 +10191,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 173:
@@ -10141,14 +10211,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 181:
@@ -10161,14 +10231,14 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 186:
@@ -10201,14 +10271,14 @@ var hq4x = function( width, height ) {
                             dest[dp+dpL+2] = w[5];
                             Interp1(dp+dpL+3, w[5], w[6]);
                         }
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 115:
@@ -10231,24 +10301,24 @@ var hq4x = function( width, height ) {
                         }
                         Interp8(dp+dpL, w[5], w[4]);
                         Interp3(dp+dpL+1, w[5], w[4]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp1(dp+dpL+dpL+3, w[5], w[6]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[8]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
                         break;
                     }
                 case 93:
@@ -10263,31 +10333,31 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+3, w[5], w[2]);
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[4]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[8]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[8]);
                         }
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp1(dp+dpL+dpL+3, w[5], w[6]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[8]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -10313,22 +10383,22 @@ var hq4x = function( width, height ) {
                         Interp8(dp+dpL+3, w[5], w[6]);
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[4]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[8]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[8]);
                         }
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 205:
@@ -10344,22 +10414,22 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
                         if (Diff(w[8], w[4]))
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[7]);
-                            Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                            Interp8(dp+(dpL * 3), w[5], w[7]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         }
                         else
                         {
-                            Interp1(dp+dpL+dpL, w[5], w[4]);
-                            dest[dp+dpL+dpL+1] = w[5];
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[5], w[8]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+1, w[5], w[8]);
                         }
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 174:
@@ -10383,14 +10453,14 @@ var hq4x = function( width, height ) {
                         Interp8(dp+3, w[5], w[6]);
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 179:
@@ -10414,14 +10484,14 @@ var hq4x = function( width, height ) {
                         }
                         Interp8(dp+dpL, w[5], w[4]);
                         Interp3(dp+dpL+1, w[5], w[4]);
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 117:
@@ -10435,24 +10505,24 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
                         if (Diff(w[6], w[8]))
                         {
-                            Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         }
                         else
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            Interp1(dp+dpL+dpL+3, w[5], w[6]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                            Interp1(dp+(dpL * 3)+2, w[5], w[8]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
                         break;
                     }
                 case 189:
@@ -10465,14 +10535,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 231:
@@ -10485,14 +10555,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 126:
@@ -10516,21 +10586,21 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+2] = w[5];
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 219:
@@ -10552,23 +10622,23 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        dest[dp+dpL+dpL+2] = w[5];
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 125:
@@ -10577,19 +10647,19 @@ var hq4x = function( width, height ) {
                         {
                             Interp8(dp, w[5], w[2]);
                             Interp3(dp+dpL, w[5], w[2]);
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+1] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
                             Interp1(dp, w[5], w[4]);
                             Interp1(dp+dpL, w[4], w[5]);
-                            Interp8(dp+dpL+dpL, w[4], w[8]);
-                            Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp2(dp+dpL+dpL+dpL+1, w[8], w[5], w[4]);
+                            Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[8]);
+                            Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp2(dp+(dpL * 3)+1, w[8], w[5], w[4]);
                         }
                         Interp8(dp+1, w[5], w[2]);
                         Interp8(dp+2, w[5], w[2]);
@@ -10597,10 +10667,10 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 221:
@@ -10612,27 +10682,27 @@ var hq4x = function( width, height ) {
                         {
                             Interp8(dp+3, w[5], w[2]);
                             Interp3(dp+dpL+3, w[5], w[2]);
-                            dest[dp+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
                             Interp1(dp+3, w[5], w[6]);
                             Interp1(dp+dpL+3, w[6], w[5]);
-                            Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                            Interp8(dp+dpL+dpL+3, w[6], w[8]);
-                            Interp2(dp+dpL+dpL+dpL+2, w[8], w[5], w[6]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                            Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[8]);
+                            Interp2(dp+(dpL * 3)+2, w[8], w[5], w[6]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
                         Interp3(dp+dpL, w[5], w[2]);
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 207:
@@ -10657,14 +10727,14 @@ var hq4x = function( width, height ) {
                         }
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 238:
@@ -10679,24 +10749,24 @@ var hq4x = function( width, height ) {
                         Interp8(dp+dpL+3, w[5], w[6]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+1] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
-                            Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
+                            Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL, w[4], w[5], w[8]);
-                            Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp8(dp+dpL+dpL+dpL+1, w[8], w[4]);
-                            Interp1(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp1(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                            Interp2(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5], w[8]);
+                            Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp8(dp+(dpL * 3)+1, w[8], w[4]);
+                            Interp1(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp1(dp+(dpL * 3)+3, w[5], w[8]);
                         }
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
                         break;
                     }
                 case 190:
@@ -10709,8 +10779,8 @@ var hq4x = function( width, height ) {
                             dest[dp+3] = w[5];
                             dest[dp+dpL+2] = w[5];
                             dest[dp+dpL+3] = w[5];
-                            Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                            Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                            Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         }
                         else
                         {
@@ -10718,17 +10788,17 @@ var hq4x = function( width, height ) {
                             Interp5(dp+3, w[2], w[6]);
                             Interp7(dp+dpL+2, w[5], w[6], w[2]);
                             Interp8(dp+dpL+3, w[6], w[2]);
-                            Interp1(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp1(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp1(dp+(dpL * 3)+3, w[5], w[6]);
                         }
                         Interp1(dp+dpL, w[5], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
                         break;
                     }
                 case 187:
@@ -10739,8 +10809,8 @@ var hq4x = function( width, height ) {
                             dest[dp+1] = w[5];
                             dest[dp+dpL] = w[5];
                             dest[dp+dpL+1] = w[5];
-                            Interp3(dp+dpL+dpL, w[5], w[8]);
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
+                            Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                            Interp8(dp+(dpL * 3), w[5], w[8]);
                         }
                         else
                         {
@@ -10748,19 +10818,19 @@ var hq4x = function( width, height ) {
                             Interp2(dp+1, w[2], w[5], w[4]);
                             Interp8(dp+dpL, w[4], w[2]);
                             Interp7(dp+dpL+1, w[5], w[4], w[2]);
-                            Interp1(dp+dpL+dpL, w[4], w[5]);
-                            Interp1(dp+dpL+dpL+dpL, w[5], w[4]);
+                            Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp1(dp+(dpL * 3), w[5], w[4]);
                         }
                         Interp1(dp+2, w[5], w[3]);
                         Interp8(dp+3, w[5], w[3]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 243:
@@ -10773,25 +10843,25 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+3] = w[5];
-                            Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                            Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            Interp8(dp+(dpL * 3), w[5], w[4]);
+                            Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                            Interp2(dp+dpL+dpL+3, w[6], w[5], w[8]);
-                            Interp1(dp+dpL+dpL+dpL, w[5], w[8]);
-                            Interp1(dp+dpL+dpL+dpL+1, w[8], w[5]);
-                            Interp8(dp+dpL+dpL+dpL+2, w[8], w[6]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                            Interp2(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5], w[8]);
+                            Interp1(dp+(dpL * 3), w[5], w[8]);
+                            Interp1(dp+(dpL * 3)+1, w[8], w[5]);
+                            Interp8(dp+(dpL * 3)+2, w[8], w[6]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
                         break;
                     }
@@ -10817,14 +10887,14 @@ var hq4x = function( width, height ) {
                         }
                         Interp8(dp+dpL, w[5], w[4]);
                         Interp3(dp+dpL+1, w[5], w[4]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 237:
@@ -10838,21 +10908,21 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp7(dp+dpL+2, w[5], w[6], w[2]);
                         Interp6(dp+dpL+3, w[5], w[6], w[2]);
-                        dest[dp+dpL+dpL] = w[5];
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL+dpL] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
                         }
-                        dest[dp+dpL+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        dest[dp+(dpL * 3)+1] = w[5];
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 175:
@@ -10873,14 +10943,14 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp7(dp+dpL+dpL+2, w[5], w[6], w[8]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[6]);
-                        Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[6]);
+                        Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         break;
                     }
                 case 183:
@@ -10901,14 +10971,14 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         dest[dp+dpL+2] = w[5];
                         dest[dp+dpL+3] = w[5];
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[8]);
-                        Interp7(dp+dpL+dpL+1, w[5], w[4], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[4]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[8]);
+                        Interp7(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[4]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 245:
@@ -10922,20 +10992,20 @@ var hq4x = function( width, height ) {
                         Interp7(dp+dpL+1, w[5], w[4], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        dest[dp+dpL+dpL+2] = w[5];
-                        dest[dp+dpL+dpL+3] = w[5];
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        dest[dp+dpL+dpL+dpL+2] = w[5];
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        dest[dp+(dpL * 3)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -10951,29 +11021,29 @@ var hq4x = function( width, height ) {
                         Interp1(dp+dpL+3, w[5], w[3]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        dest[dp+dpL+dpL+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
                         break;
                     }
@@ -10998,21 +11068,21 @@ var hq4x = function( width, height ) {
                         Interp1(dp+dpL+3, w[5], w[3]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 95:
@@ -11043,14 +11113,14 @@ var hq4x = function( width, height ) {
                         }
                         dest[dp+dpL+1] = w[5];
                         dest[dp+dpL+2] = w[5];
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 222:
@@ -11072,23 +11142,23 @@ var hq4x = function( width, height ) {
                         Interp1(dp+dpL, w[5], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
                         dest[dp+dpL+2] = w[5];
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        dest[dp+dpL+dpL+2] = w[5];
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 252:
@@ -11103,27 +11173,27 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+3, w[5], w[2]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        dest[dp+dpL+dpL+2] = w[5];
-                        dest[dp+dpL+dpL+3] = w[5];
-                        dest[dp+dpL+dpL+dpL+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                        dest[dp+(dpL * 3)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -11137,30 +11207,30 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        dest[dp+dpL+dpL] = w[5];
-                        dest[dp+dpL+dpL+1] = w[5];
-                        dest[dp+dpL+dpL+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL+dpL] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
                         }
-                        dest[dp+dpL+dpL+dpL+1] = w[5];
+                        dest[dp+(dpL * 3)+1] = w[5];
                         break;
                     }
                 case 235:
@@ -11182,21 +11252,21 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp6(dp+dpL+3, w[5], w[6], w[3]);
-                        dest[dp+dpL+dpL] = w[5];
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL+dpL] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
                         }
-                        dest[dp+dpL+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        dest[dp+(dpL * 3)+1] = w[5];
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 111:
@@ -11218,21 +11288,21 @@ var hq4x = function( width, height ) {
                         Interp8(dp+dpL+3, w[5], w[6]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp6(dp+dpL+dpL+3, w[5], w[6], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 63:
@@ -11261,14 +11331,14 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL] = w[5];
                         dest[dp+dpL+1] = w[5];
                         dest[dp+dpL+2] = w[5];
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp6(dp+dpL+dpL+dpL+2, w[5], w[8], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp6(dp+(dpL * 3)+2, w[5], w[8], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 159:
@@ -11297,14 +11367,14 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         dest[dp+dpL+2] = w[5];
                         dest[dp+dpL+3] = w[5];
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp6(dp+dpL+dpL+dpL+1, w[5], w[8], w[7]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp6(dp+(dpL * 3)+1, w[5], w[8], w[7]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 215:
@@ -11324,23 +11394,23 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         dest[dp+dpL+2] = w[5];
                         dest[dp+dpL+3] = w[5];
-                        Interp6(dp+dpL+dpL, w[5], w[4], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        dest[dp+dpL+dpL+2] = w[5];
+                        Interp6(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 246:
@@ -11362,20 +11432,20 @@ var hq4x = function( width, height ) {
                         Interp6(dp+dpL, w[5], w[4], w[1]);
                         Interp3(dp+dpL+1, w[5], w[1]);
                         dest[dp+dpL+2] = w[5];
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        dest[dp+dpL+dpL+2] = w[5];
-                        dest[dp+dpL+dpL+3] = w[5];
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        dest[dp+dpL+dpL+dpL+2] = w[5];
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        dest[dp+(dpL * 3)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -11400,27 +11470,27 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+2] = w[5];
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        dest[dp+dpL+dpL+2] = w[5];
-                        dest[dp+dpL+dpL+3] = w[5];
-                        dest[dp+dpL+dpL+dpL+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                        dest[dp+(dpL * 3)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -11434,27 +11504,27 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[2]);
                         Interp3(dp+dpL+2, w[5], w[2]);
                         Interp3(dp+dpL+3, w[5], w[2]);
-                        dest[dp+dpL+dpL] = w[5];
-                        dest[dp+dpL+dpL+1] = w[5];
-                        dest[dp+dpL+dpL+2] = w[5];
-                        dest[dp+dpL+dpL+3] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL+dpL] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
                         }
-                        dest[dp+dpL+dpL+dpL+1] = w[5];
-                        dest[dp+dpL+dpL+dpL+2] = w[5];
+                        dest[dp+(dpL * 3)+1] = w[5];
+                        dest[dp+(dpL * 3)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -11477,30 +11547,30 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         Interp3(dp+dpL+2, w[5], w[3]);
                         Interp1(dp+dpL+3, w[5], w[3]);
-                        dest[dp+dpL+dpL] = w[5];
-                        dest[dp+dpL+dpL+1] = w[5];
-                        dest[dp+dpL+dpL+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL+dpL] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
                         }
-                        dest[dp+dpL+dpL+dpL+1] = w[5];
+                        dest[dp+(dpL * 3)+1] = w[5];
                         break;
                     }
                 case 239:
@@ -11520,21 +11590,21 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         Interp3(dp+dpL+2, w[5], w[6]);
                         Interp8(dp+dpL+3, w[5], w[6]);
-                        dest[dp+dpL+dpL] = w[5];
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+3, w[5], w[6]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[6]);
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[6]);
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL+dpL] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
                         }
-                        dest[dp+dpL+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+dpL+2, w[5], w[6]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[6]);
+                        dest[dp+(dpL * 3)+1] = w[5];
+                        Interp3(dp+(dpL * 3)+2, w[5], w[6]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[6]);
                         break;
                     }
                 case 127:
@@ -11565,21 +11635,21 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+2] = w[5];
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL] = w[5];
-                            dest[dp+dpL+dpL+dpL+1] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
+                            dest[dp+(dpL * 3)+1] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL, w[4], w[5]);
-                            Interp5(dp+dpL+dpL+dpL, w[8], w[4]);
-                            Interp5(dp+dpL+dpL+dpL+1, w[8], w[5]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/), w[4], w[5]);
+                            Interp5(dp+(dpL * 3), w[8], w[4]);
+                            Interp5(dp+(dpL * 3)+1, w[8], w[5]);
                         }
-                        dest[dp+dpL+dpL+1] = w[5];
-                        Interp3(dp+dpL+dpL+2, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+3, w[5], w[9]);
-                        Interp1(dp+dpL+dpL+dpL+2, w[5], w[9]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[9]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[9]);
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[9]);
+                        Interp1(dp+(dpL * 3)+2, w[5], w[9]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[9]);
                         break;
                     }
                 case 191:
@@ -11606,14 +11676,14 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         dest[dp+dpL+2] = w[5];
                         dest[dp+dpL+3] = w[5];
-                        Interp3(dp+dpL+dpL, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+2, w[5], w[8]);
-                        Interp3(dp+dpL+dpL+3, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+1, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+2, w[5], w[8]);
-                        Interp8(dp+dpL+dpL+dpL+3, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+2, w[5], w[8]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+3, w[5], w[8]);
+                        Interp8(dp+(dpL * 3), w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+1, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+2, w[5], w[8]);
+                        Interp8(dp+(dpL * 3)+3, w[5], w[8]);
                         break;
                     }
                 case 223:
@@ -11642,23 +11712,23 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         dest[dp+dpL+2] = w[5];
                         dest[dp+dpL+3] = w[5];
-                        Interp1(dp+dpL+dpL, w[5], w[7]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[7]);
-                        dest[dp+dpL+dpL+2] = w[5];
+                        Interp1(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[7]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[7]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+3] = w[5];
-                            dest[dp+dpL+dpL+dpL+2] = w[5];
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                            dest[dp+(dpL * 3)+2] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp5(dp+dpL+dpL+3, w[6], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+2, w[8], w[5]);
-                            Interp5(dp+dpL+dpL+dpL+3, w[8], w[6]);
+                            Interp5(dp+(dpL << 1 /*==dpL * 2*/)+3, w[6], w[5]);
+                            Interp5(dp+(dpL * 3)+2, w[8], w[5]);
+                            Interp5(dp+(dpL * 3)+3, w[8], w[6]);
                         }
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[7]);
-                        Interp1(dp+dpL+dpL+dpL+1, w[5], w[7]);
+                        Interp8(dp+(dpL * 3), w[5], w[7]);
+                        Interp1(dp+(dpL * 3)+1, w[5], w[7]);
                         break;
                     }
                 case 247:
@@ -11678,20 +11748,20 @@ var hq4x = function( width, height ) {
                         Interp3(dp+dpL+1, w[5], w[4]);
                         dest[dp+dpL+2] = w[5];
                         dest[dp+dpL+3] = w[5];
-                        Interp8(dp+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+1, w[5], w[4]);
-                        dest[dp+dpL+dpL+2] = w[5];
-                        dest[dp+dpL+dpL+3] = w[5];
-                        Interp8(dp+dpL+dpL+dpL, w[5], w[4]);
-                        Interp3(dp+dpL+dpL+dpL+1, w[5], w[4]);
-                        dest[dp+dpL+dpL+dpL+2] = w[5];
+                        Interp8(dp+(dpL << 1 /*==dpL * 2*/), w[5], w[4]);
+                        Interp3(dp+(dpL << 1 /*==dpL * 2*/)+1, w[5], w[4]);
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
+                        Interp8(dp+(dpL * 3), w[5], w[4]);
+                        Interp3(dp+(dpL * 3)+1, w[5], w[4]);
+                        dest[dp+(dpL * 3)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
@@ -11719,36 +11789,37 @@ var hq4x = function( width, height ) {
                         dest[dp+dpL+1] = w[5];
                         dest[dp+dpL+2] = w[5];
                         dest[dp+dpL+3] = w[5];
-                        dest[dp+dpL+dpL] = w[5];
-                        dest[dp+dpL+dpL+1] = w[5];
-                        dest[dp+dpL+dpL+2] = w[5];
-                        dest[dp+dpL+dpL+3] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+1] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+2] = w[5];
+                        dest[dp+(dpL << 1 /*==dpL * 2*/)+3] = w[5];
                         if (Diff(w[8], w[4]))
                         {
-                            dest[dp+dpL+dpL+dpL] = w[5];
+                            dest[dp+(dpL * 3)] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL, w[5], w[8], w[4]);
+                            Interp2(dp+(dpL * 3), w[5], w[8], w[4]);
                         }
-                        dest[dp+dpL+dpL+dpL+1] = w[5];
-                        dest[dp+dpL+dpL+dpL+2] = w[5];
+                        dest[dp+(dpL * 3)+1] = w[5];
+                        dest[dp+(dpL * 3)+2] = w[5];
                         if (Diff(w[6], w[8]))
                         {
-                            dest[dp+dpL+dpL+dpL+3] = w[5];
+                            dest[dp+(dpL * 3)+3] = w[5];
                         }
                         else
                         {
-                            Interp2(dp+dpL+dpL+dpL+3, w[5], w[8], w[6]);
+                            Interp2(dp+(dpL * 3)+3, w[5], w[8], w[6]);
                         }
                         break;
                     }
             }
             sp++;
-            dp += 4;
+            //dp += 4; optimized
+            dp <<= 2;
         }
         dp += (dpL * 3);
     }
 }
 
-})(window);
+})(this);
