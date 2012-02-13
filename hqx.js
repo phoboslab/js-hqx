@@ -29,138 +29,137 @@
 
 var document = window.document,
 
-	YUV1 = 0,
-	YUV2 = 0,
-	src = [],
-	dest = [],
+	_src = [],
+	_dest = [],
 
-	MASK_2 = 0x00FF00,
-	MASK_13 = 0xFF00FF,
+	_MASK_2 = 0x00FF00,
+	_MASK_13 = 0xFF00FF,
 
-	Ymask = 0x00FF0000,
-	Umask = 0x0000FF00,
-	Vmask = 0x000000FF,
-	trY = 0x00300000,
-	trU = 0x00000700,
-	trV = 0x00000006;
+	_Ymask = 0x00FF0000,
+	_Umask = 0x0000FF00,
+	_Vmask = 0x000000FF,
+	
+	_trY = 0x00300000,
+	_trU = 0x00000700,
+	_trV = 0x00000006;
 
 // optimum Math.abs
-var MathAbs = function(n) { return n < 0 ? -n : n; };
+var MathAbs = Math.abs;
 
 var RGBtoYUV = function( c ) {
 	var r = (c & 0xFF0000) >> 16;
 	var g = (c & 0x00FF00) >> 8;
-	var b = c & 0x0000FF;
-	return ((/*y=*/(0.299*r + 0.587*g + 0.114*b) | 0) << 16) +
+	var b =  c & 0x0000FF;
+	return  ((/*y=*/(0.299*r + 0.587*g + 0.114*b) | 0) << 16) +
 		((/*u=*/((-0.169*r - 0.331*g + 0.5*b) + 128) | 0) << 8) + 
 		(/*v=*/((0.5*r - 0.419*g - 0.081*b) + 128) | 0);
 };
 
 var Diff = function( w1, w2 ) {
 	// Mask against RGB_MASK to discard the alpha channel
-	YUV1 = RGBtoYUV(w1);
-	YUV2 = RGBtoYUV(w2);
-	return ( ( MathAbs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
-			( MathAbs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
-			( MathAbs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) );
-}
+	var YUV1 = RGBtoYUV(w1);
+	var YUV2 = RGBtoYUV(w2);
+	return  ((MathAbs((_YUV1 & _Ymask) - (_YUV2 & _Ymask)) > _trY ) ||
+		( MathAbs((_YUV1 & _Umask) - (_YUV2 & _Umask)) > _trU ) ||
+		( MathAbs((_YUV1 & _Vmask) - (_YUV2 & _Vmask)) > _trV ) );
+};
 
 /* Interpolate functions */
 
 var Interp1 = function( pc, c1, c2 ) {
     //*pc = (c1*3+c2) >> 2;
     if (c1 === c2) {
-        dest[pc] = c1;
+        _dest[pc] = c1;
         return;
     }
-    dest[pc] = ((((c1 & MASK_2) * 3 + (c2 & MASK_2)) >> 2) & MASK_2) +
-        ((((c1 & MASK_13) * 3 + (c2 & MASK_13)) >> 2) & MASK_13);
+    _dest[pc] = ((((c1 & _MASK_2) * 3 + (c2 & _MASK_2)) >> 2) & _MASK_2) +
+        ((((c1 & _MASK_13) * 3 + (c2 & _MASK_13)) >> 2) & _MASK_13);
 
-	dest[pc] |= (c1 & 0xFF000000);
+	_dest[pc] |= (c1 & 0xFF000000);
 };
 
 var Interp2 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*2+c2+c3) >> 2;
-    dest[pc] = (((((c1 & MASK_2) << 1) + (c2 & MASK_2) + (c3 & MASK_2)) >> 2) & MASK_2) +
-          (((((c1 & MASK_13) << 1) + (c2 & MASK_13) + (c3 & MASK_13)) >> 2) & MASK_13);
+    _dest[pc] = (((((c1 & _MASK_2) << 1) + (c2 & _MASK_2) + (c3 & _MASK_2)) >> 2) & _MASK_2) +
+          (((((c1 & _MASK_13) << 1) + (c2 & _MASK_13) + (c3 & _MASK_13)) >> 2) & _MASK_13);
 
-	dest[pc] |= (c1 & 0xFF000000);
+	_dest[pc] |= (c1 & 0xFF000000);
 };
 
 var Interp3 = function( pc, c1, c2 ) {
     //*pc = (c1*7+c2)/8;
     if (c1 === c2) {
-        dest[pc] = c1;
+        _dest[pc] = c1;
         return;
     }
-    dest[pc] = ((((c1 & MASK_2) * 7 + (c2 & MASK_2)) >> 3) & MASK_2) +
-        ((((c1 & MASK_13) * 7 + (c2 & MASK_13)) >> 3) & MASK_13);
+    _dest[pc] = ((((c1 & _MASK_2) * 7 + (c2 & _MASK_2)) >> 3) & _MASK_2) +
+        ((((c1 & _MASK_13) * 7 + (c2 & _MASK_13)) >> 3) & _MASK_13);
 
-	dest[pc] |= (c1 & 0xFF000000);
+	_dest[pc] |= (c1 & 0xFF000000);
 };
 
 var Interp4 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*2+(c2+c3)*7)/16;
-    dest[pc] = (((((c1 & MASK_2) << 1) + (c2 & MASK_2) * 7 + (c3 & MASK_2) * 7) >> 4) & MASK_2) +
-          (((((c1 & MASK_13) << 1) + (c2 & MASK_13) * 7 + (c3 & MASK_13) * 7) >> 4) & MASK_13);
+    _dest[pc] = (((((c1 & _MASK_2) << 1) + (c2 & _MASK_2) * 7 + (c3 & _MASK_2) * 7) >> 4) & _MASK_2) +
+          (((((c1 & _MASK_13) << 1) + (c2 & _MASK_13) * 7 + (c3 & _MASK_13) * 7) >> 4) & _MASK_13);
 
-	dest[pc] |= (c1 & 0xFF000000);
+	_dest[pc] |= (c1 & 0xFF000000);
 };
 
 var Interp5 = function( pc, c1, c2 ) {
     //*pc = (c1+c2) >> 1;
     if (c1 === c2) {
-        dest[pc] = c1;
+        _dest[pc] = c1;
         return;
     }
-    dest[pc] = ((((c1 & MASK_2) + (c2 & MASK_2)) >> 1) & MASK_2) +
-        ((((c1 & MASK_13) + (c2 & MASK_13)) >> 1) & MASK_13);
+    _dest[pc] = ((((c1 & _MASK_2) + (c2 & _MASK_2)) >> 1) & _MASK_2) +
+        ((((c1 & _MASK_13) + (c2 & _MASK_13)) >> 1) & _MASK_13);
 
-	dest[pc] |= (c1 & 0xFF000000);
+	_dest[pc] |= (c1 & 0xFF000000);
 };
 
 var Interp6 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*5+c2*2+c3)/8;
-    dest[pc] = ((((c1 & MASK_2) * 5 + ((c2 & MASK_2) << 1) + (c3 & MASK_2)) >> 3) & MASK_2) +
-          ((((c1 & MASK_13) * 5 + ((c2 & MASK_13) << 1) + (c3 & MASK_13)) >> 3) & MASK_13);
+    _dest[pc] = ((((c1 & _MASK_2) * 5 + ((c2 & _MASK_2) << 1) + (c3 & _MASK_2)) >> 3) & _MASK_2) +
+          ((((c1 & _MASK_13) * 5 + ((c2 & _MASK_13) << 1) + (c3 & _MASK_13)) >> 3) & _MASK_13);
 
-	dest[pc] |= (c1 & 0xFF000000);
+	_dest[pc] |= (c1 & 0xFF000000);
 };
 
 var Interp7 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*6+c2+c3)/8;
-    dest[pc] = ((((c1 & MASK_2) * 6 + (c2 & MASK_2) + (c3 & MASK_2)) >> 3) & MASK_2) +
-          ((((c1 & MASK_13) * 6 + (c2 & MASK_13) + (c3 & MASK_13)) >> 3) & MASK_13);
+    _dest[pc] = ((((c1 & _MASK_2) * 6 + (c2 & _MASK_2) + (c3 & _MASK_2)) >> 3) & _MASK_2) +
+          ((((c1 & _MASK_13) * 6 + (c2 & _MASK_13) + (c3 & _MASK_13)) >> 3) & _MASK_13);
 
-	dest[pc] |= (c1 & 0xFF000000);
+	_dest[pc] |= (c1 & 0xFF000000);
 };
 
 var Interp8 = function( pc, c1, c2 ) {
     //*pc = (c1*5+c2*3)/8;
     if (c1 === c2) {
-        dest[pc] = c1;
+        _dest[pc] = c1;
         return;
     }
-    dest[pc] = ((((c1 & MASK_2) * 5 + (c2 & MASK_2) * 3) >> 3) & MASK_2) +
-          ((((c1 & MASK_13) * 5 + (c2 & MASK_13) * 3) >> 3) & MASK_13);
+    _dest[pc] = ((((c1 & _MASK_2) * 5 + (c2 & _MASK_2) * 3) >> 3) & _MASK_2) +
+          ((((c1 & _MASK_13) * 5 + (c2 & _MASK_13) * 3) >> 3) & _MASK_13);
 
-	dest[pc] |= (c1 & 0xFF000000);
+	_dest[pc] |= (c1 & 0xFF000000);
 };
 
 var Interp9 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*2+(c2+c3)*3)/8;
-    dest[pc] = (((((c1 & MASK_2) << 1) + (c2 & MASK_2) * 3 + (c3 & MASK_2) * 3) >> 3) & MASK_2) +
-          (((((c1 & MASK_13) << 1) + (c2 & MASK_13) * 3 + (c3 & MASK_13) * 3) >> 3) & MASK_13);
+    _dest[pc] = (((((c1 & _MASK_2) << 1) + (c2 & _MASK_2) * 3 + (c3 & _MASK_2) * 3) >> 3) & _MASK_2) +
+          (((((c1 & _MASK_13) << 1) + (c2 & _MASK_13) * 3 + (c3 & _MASK_13) * 3) >> 3) & _MASK_13);
 
-	dest[pc] |= (c1 & 0xFF000000);
+	_dest[pc] |= (c1 & 0xFF000000);
 };
 
 var Interp10 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*14+c2+c3)/16;
-    dest[pc] = ((((c1 & MASK_2) * 14 + (c2 & MASK_2) + (c3 & MASK_2)) >> 4) & MASK_2) +
-          ((((c1 & MASK_13) * 14 + (c2 & MASK_13) + (c3 & MASK_13)) >> 4) & MASK_13);
+    _dest[pc] = ((((c1 & _MASK_2) * 14 + (c2 & _MASK_2) + (c3 & _MASK_2)) >> 4) & _MASK_2) +
+          ((((c1 & _MASK_13) * 14 + (c2 & _MASK_13) + (c3 & _MASK_13)) >> 4) & _MASK_13);
 
-	dest[pc] |= (c1 & 0xFF000000);
+	_dest[pc] |= (c1 & 0xFF000000);
 };
 
 
@@ -170,8 +169,8 @@ window.hqx = function( img, scale ) {
 		return img;
 	}
 
-	src = [];
-	dest = [];
+	var src = _src = [];
+	var dest = _dest = [];
 
 	var orig, origCtx, scaled;
 	if (img instanceof HTMLCanvasElement){
@@ -192,13 +191,11 @@ window.hqx = function( img, scale ) {
 	// pack RGBA colors into integers
 	var count = img.width * img.height;
 	var index;
-	for( var i = 0; i < count; i++ ) {
-		//var index = i * 4; otimized
-		index = i << 2;
-		src[i] = (origPixels[index+3] << 24) +
-				(origPixels[index+2] << 16) +
-				(origPixels[index+1] << 8) +
-				origPixels[index];
+	for(var i = 0; i < count; i++) {
+		src[i] = (origPixels[(index = i << 2)+3] << 24) +
+			(origPixels[index+2] << 16) +
+			(origPixels[index+1] << 8) +
+			origPixels[index];
 	}
 
 	// This is where the magic happens
@@ -211,22 +208,19 @@ window.hqx = function( img, scale ) {
 	scaled.height = orig.height * scale;
 	var scaledCtx = scaled.getContext('2d');
 	var scaledPixels = scaledCtx.getImageData( 0, 0, scaled.width, scaled.height );
-
-	var c, a, 
-		scaledPixelsData = scaledPixels.data;
+	var scaledPixelsData = scaledPixels.data;
+	
 	// unpack integers to RGBA
-	for( var j = 0; j < dest.length; j++ ) {
-		c = dest[j];
-		a = (c & 0xFF000000) >> 24;
-		//index = j * 4; optimized
-		index = j << 2;
-		scaledPixelsData[index+3] = a < 0 ? a + 256 : 0; // signed/unsigned :/
+	var c, a, destLength = dest.length;
+	for( var j = 0; j < destLength; j++ ) {
+		a = ((c = dest[j]) & 0xFF000000) >> 24;
+		scaledPixelsData[(index = j << 2)+3] = a < 0 ? a + 256 : 0; // signed/unsigned :/
 		scaledPixelsData[index+2] = (c & 0x00FF0000) >> 16;
 		scaledPixelsData[index+1] = (c & 0x0000FF00) >> 8;
 		scaledPixelsData[index] = c & 0x000000FF;
 	}
-	src = [];
-	dest = [];
+	_src = [];
+	_dest = [];
 	scaledCtx.putImageData( scaledPixels, 0, 0 );
 	return scaled;
 };
@@ -252,21 +246,31 @@ var hq2x = function( width, height ) {
 		sp = 0;
 		
 	// internal to local optimization
-	var MathAbs = MathAbs,
-		RGBtoYUV = RGBtoYUV,
-		Diff = Diff,
-		Interp1 = Interp1,
-		Interp2 = Interp2,
-		Interp3 = Interp3,
-		Interp4 = Interp4,
-		Interp5 = Interp5,
-		Interp6 = Interp6,
-		Interp7 = Interp7,
-		Interp8 = Interp8,
-		Interp9 = Interp9,
-		Interp10 = Interp10,
-		src = src,
-		dest = dest;
+	var 
+		Diff = _Diff,
+		MathAbs = _MathAbs,
+		RGBtoYUV = _RGBtoYUV,
+		Interp1 = _Interp1,
+		Interp2 = _Interp2,
+		Interp3 = _Interp3,
+		Interp4 = _Interp4,
+		Interp5 = _Interp5,
+		Interp6 = _Interp6,
+		Interp7 = _Interp7,
+		Interp8 = _Interp8,
+		Interp9 = _Interp9,
+		Interp10 = _Interp10,
+		src = _src,
+		dest = _dest,
+		MASK_2 = _MASK_2,
+		MASK_13 = _MASK_13,
+		Ymask = _Ymask,
+		Umask = _Umask,
+		Vmask = _Vmask,
+		trY = _trY,
+		trU = _trU,
+		trV = _trV;
+		
 
     //   +----+----+----+
     //   |    |    |    |
@@ -2980,8 +2984,7 @@ var hq2x = function( width, height ) {
                     }
             }
             sp++;
-            //dp += 2; optimized
-            dp <<= 1;
+            dp += 2;
         }
         dp += dpL;
     }
@@ -3017,21 +3020,30 @@ var hq3x = function( width, height ) {
 		sp = 0;
 
 	// internal to local optimization
-	var MathAbs = MathAbs,
-		RGBtoYUV = RGBtoYUV,
-		Diff = Diff,
-		Interp1 = Interp1,
-		Interp2 = Interp2,
-		Interp3 = Interp3,
-		Interp4 = Interp4,
-		Interp5 = Interp5,
-		Interp6 = Interp6,
-		Interp7 = Interp7,
-		Interp8 = Interp8,
-		Interp9 = Interp9,
-		Interp10 = Interp10,
-		src = src,
-		dest = dest;
+	var 
+		Diff = _Diff,
+		MathAbs = _MathAbs,
+		RGBtoYUV = _RGBtoYUV,
+		Interp1 = _Interp1,
+		Interp2 = _Interp2,
+		Interp3 = _Interp3,
+		Interp4 = _Interp4,
+		Interp5 = _Interp5,
+		Interp6 = _Interp6,
+		Interp7 = _Interp7,
+		Interp8 = _Interp8,
+		Interp9 = _Interp9,
+		Interp10 = _Interp10,
+		src = _src,
+		dest = _dest,
+		MASK_2 = _MASK_2,
+		MASK_13 = _MASK_13,
+		Ymask = _Ymask,
+		Umask = _Umask,
+		Vmask = _Vmask,
+		trY = _trY,
+		trU = _trU,
+		trV = _trV;
 
 	//   +----+----+----+
 	//   |	|	|	|
@@ -6755,21 +6767,30 @@ var hq4x = function( width, height ) {
 		sp = 0;
 
 	// internal to local optimization
-	var MathAbs = MathAbs,
-		RGBtoYUV = RGBtoYUV,
-		Diff = Diff,
-		Interp1 = Interp1,
-		Interp2 = Interp2,
-		Interp3 = Interp3,
-		Interp4 = Interp4,
-		Interp5 = Interp5,
-		Interp6 = Interp6,
-		Interp7 = Interp7,
-		Interp8 = Interp8,
-		Interp9 = Interp9,
-		Interp10 = Interp10,
-		src = src,
-		dest = dest;
+	var 
+		Diff = _Diff,
+		MathAbs = _MathAbs,
+		RGBtoYUV = _RGBtoYUV,
+		Interp1 = _Interp1,
+		Interp2 = _Interp2,
+		Interp3 = _Interp3,
+		Interp4 = _Interp4,
+		Interp5 = _Interp5,
+		Interp6 = _Interp6,
+		Interp7 = _Interp7,
+		Interp8 = _Interp8,
+		Interp9 = _Interp9,
+		Interp10 = _Interp10,
+		src = _src,
+		dest = _dest,
+		MASK_2 = _MASK_2,
+		MASK_13 = _MASK_13,
+		Ymask = _Ymask,
+		Umask = _Umask,
+		Vmask = _Vmask,
+		trY = _trY,
+		trU = _trU,
+		trV = _trV;
 
     //   +----+----+----+
     //   |    |    |    |
@@ -11815,8 +11836,7 @@ var hq4x = function( width, height ) {
                     }
             }
             sp++;
-            //dp += 4; optimized
-            dp <<= 2;
+            dp += 4;
         }
         dp += (dpL * 3);
     }
