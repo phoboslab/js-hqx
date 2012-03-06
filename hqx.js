@@ -27,15 +27,15 @@
 
 (function(window){
 
-"use strict"; // strict mode on (optimum on the future)
+"use strict"; // strict will be optimized on engines (https://developer.mozilla.org/en/JavaScript/Strict_mode)
 
 var 
-  _src = null,
+	_src = null,
 	_dest = null,
-
+	
 	_MASK_2 = 0x00FF00,
 	_MASK_13 = 0xFF00FF,
-
+	
 	_Ymask = 0x00FF0000,
 	_Umask = 0x0000FF00,
 	_Vmask = 0x000000FF,
