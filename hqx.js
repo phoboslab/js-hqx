@@ -27,14 +27,15 @@
 
 (function(window){
 
-var document = window.document,
+"use strict"; // strict will be optimized on engines (https://developer.mozilla.org/en/JavaScript/Strict_mode)
 
-	_src = [],
-	_dest = [],
-
+var 
+	_src = null,
+	_dest = null,
+	
 	_MASK_2 = 0x00FF00,
 	_MASK_13 = 0xFF00FF,
-
+	
 	_Ymask = 0x00FF0000,
 	_Umask = 0x0000FF00,
 	_Vmask = 0x000000FF,
@@ -43,8 +44,7 @@ var document = window.document,
 	_trU = 0x00000700,
 	_trV = 0x00000006;
 
-// optimum Math.abs
-var _MathAbs = Math.abs;
+var _Math = window.Math; // global to local. SHALL NOT cache abs directly (http://jsperf.com/math-vs-global/2)
 
 var _RGBtoYUV = function( c ) {
 	var r = (c & 0xFF0000) >> 16;
@@ -59,9 +59,9 @@ var _Diff = function( w1, w2 ) {
 	// Mask against RGB_MASK to discard the alpha channel
 	var YUV1 = _RGBtoYUV(w1);
 	var YUV2 = _RGBtoYUV(w2);
-	return  ((_MathAbs((YUV1 & _Ymask) - (YUV2 & _Ymask)) > _trY ) ||
-		( _MathAbs((YUV1 & _Umask) - (YUV2 & _Umask)) > _trU ) ||
-		( _MathAbs((YUV1 & _Vmask) - (YUV2 & _Vmask)) > _trV ) );
+	return  ((_Math.abs((YUV1 & _Ymask) - (YUV2 & _Ymask)) > _trY ) ||
+		( _Math.abs((YUV1 & _Umask) - (YUV2 & _Umask)) > _trU ) ||
+		( _Math.abs((YUV1 & _Vmask) - (YUV2 & _Vmask)) > _trV ) );
 };
 
 /* Interpolate functions */
@@ -169,9 +169,6 @@ window.hqx = function( img, scale ) {
 		return img;
 	}
 
-	var src = _src = [];
-	var dest = _dest = [];
-
 	var orig, origCtx, scaled;
 	if (img instanceof HTMLCanvasElement){
 		orig = img;
@@ -190,6 +187,8 @@ window.hqx = function( img, scale ) {
 
 	// pack RGBA colors into integers
 	var count = img.width * img.height;
+	var src = _src = new Array(count);
+	var dest = _dest = new Array(count*scale*scale);
 	var index;
 	for(var i = 0; i < count; i++) {
 		src[i] = (origPixels[(index = i << 2)+3] << 24) +
@@ -206,6 +205,7 @@ window.hqx = function( img, scale ) {
 
 	scaled.width = orig.width * scale;
 	scaled.height = orig.height * scale;
+	
 	var scaledCtx = scaled.getContext('2d');
 	var scaledPixels = scaledCtx.getImageData( 0, 0, scaled.width, scaled.height );
 	var scaledPixelsData = scaledPixels.data;
@@ -219,8 +219,8 @@ window.hqx = function( img, scale ) {
 		scaledPixelsData[index+1] = (c & 0x0000FF00) >> 8;
 		scaledPixelsData[index] = c & 0x000000FF;
 	}
-	_src = [];
-	_dest = [];
+	_src = src = null;
+	_dest = dest = null;
 	scaledCtx.putImageData( scaledPixels, 0, 0 );
 	return scaled;
 };
@@ -248,7 +248,7 @@ var hq2x = function( width, height ) {
 	// internal to local optimization
 	var 
 		Diff = _Diff,
-		MathAbs = _MathAbs,
+		Math = _Math,
 		RGBtoYUV = _RGBtoYUV,
 		Interp1 = _Interp1,
 		Interp2 = _Interp2,
@@ -334,9 +334,9 @@ var hq2x = function( width, height ) {
                 if ( w[k] !== w[5] )
                 {
                     YUV2 = RGBtoYUV(w[k]);
-                    if ( ( MathAbs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
-                            ( MathAbs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
-                            ( MathAbs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
+                    if ( ( Math.abs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
+                            ( Math.abs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
+                            ( Math.abs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
                         pattern |= flag;
                 }
                 flag <<= 1;
@@ -3023,7 +3023,7 @@ var hq3x = function( width, height ) {
 	// internal to local optimization
 	var 
 		Diff = _Diff,
-		MathAbs = _MathAbs,
+		Math = _Math,
 		RGBtoYUV = _RGBtoYUV,
 		Interp1 = _Interp1,
 		Interp2 = _Interp2,
@@ -3108,9 +3108,9 @@ var hq3x = function( width, height ) {
 				if ( w[k] !== w[5] )
 				{
 					YUV2 = RGBtoYUV(w[k]);
-					if ( ( MathAbs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
-							( MathAbs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
-							( MathAbs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
+					if ( ( Math.abs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
+							( Math.abs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
+							( Math.abs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
 						pattern |= flag;
 				}
 				flag <<= 1;
@@ -6771,7 +6771,7 @@ var hq4x = function( width, height ) {
 	// internal to local optimization
 	var 
 		Diff = _Diff,
-		MathAbs = _MathAbs,
+		Math = _Math,
 		RGBtoYUV = _RGBtoYUV,
 		Interp1 = _Interp1,
 		Interp2 = _Interp2,
@@ -6856,9 +6856,9 @@ var hq4x = function( width, height ) {
                 if ( w[k] !== w[5] )
                 {
                     YUV2 = RGBtoYUV(w[k]);
-                    if ( ( MathAbs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
-                            ( MathAbs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
-                            ( MathAbs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
+                    if ( ( Math.abs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
+                            ( Math.abs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
+                            ( Math.abs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
                         pattern |= flag;
                 }
                 flag <<= 1;
