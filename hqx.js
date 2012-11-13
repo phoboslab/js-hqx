@@ -163,28 +163,54 @@ var _Interp10 = function( pc, c1, c2, c3 ) {
 };
 
 
+var getVendorAttribute = function( el, attr ) {
+	var uc = attr.charAt(0).toUpperCase() + attr.substr(1);
+	return el[attr] || el['ms'+uc] || el['moz'+uc] || el['webkit'+uc] || el['o'+uc];
+};
+
+
+// This function normalizes getImageData to extract the real, actual
+// pixels from an image. The naive method recently failed on retina
+// devices with a backgingStoreRatio != 1
+var getImagePixels = function( image, x, y, width, height ) {
+	var canvas = document.createElement('canvas');
+	var ctx = canvas.getContext('2d');
+
+	var ratio = getVendorAttribute( ctx, 'backingStorePixelRatio' ) || 1;
+	ctx.getImageDataHD = getVendorAttribute( ctx, 'getImageDataHD' );
+
+	var realWidth = image.width / ratio,
+		realHeight = image.height / ratio;
+
+	canvas.width = Math.ceil( realWidth );
+	canvas.height = Math.ceil( realHeight );
+
+	ctx.drawImage( image, 0, 0, realWidth, realHeight );
+	
+	return (ratio === 1)
+		? ctx.getImageData( x, y, width, height )
+		: ctx.getImageDataHD( x, y, width, height );
+};
+
+
 window.hqx = function( img, scale ) {
 	// We can only scale with a factor of 2, 3 or 4
 	if( [2,3,4].indexOf(scale) === -1 ) {
 		return img;
 	}
 
-	var orig, origCtx, scaled;
+	var orig, origCtx, scaled, origPixels;
 	if (img instanceof HTMLCanvasElement){
 		orig = img;
 		origCtx = orig.getContext('2d');
 		scaled = orig;
+		origPixels = origCtx.getImageData(0, 0, orig.width, orig.height).data;
 	} else {
-		orig = document.createElement('canvas');
-		orig.width = img.width;
-		orig.height = img.height;
-		origCtx = orig.getContext('2d');
-		origCtx.drawImage( img, 0, 0, img.width, img.height, 0, 0, img.width, img.height);
+		origPixels = getImagePixels( img, 0, 0, img.width, img.height ).data;
 		scaled = document.createElement('canvas');
 	}
-	var origPixels = origCtx.getImageData(0, 0, orig.width, orig.height).data;
-
-
+	
+	
 	// pack RGBA colors into integers
 	var count = img.width * img.height;
 	var src = _src = new Array(count);
@@ -203,8 +229,8 @@ window.hqx = function( img, scale ) {
 	else if( scale === 4 ) hq4x( img.width, img.height );
 	// alternative: window['hq'+scale+'x']( img.width, img.height ); 
 
-	scaled.width = orig.width * scale;
-	scaled.height = orig.height * scale;
+	scaled.width = img.width * scale;
+	scaled.height = img.height * scale;
 	
 	var scaledCtx = scaled.getContext('2d');
 	var scaledPixels = scaledCtx.getImageData( 0, 0, scaled.width, scaled.height );
