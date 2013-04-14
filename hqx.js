@@ -213,8 +213,24 @@ window.hqx = function( img, scale ) {
 	
 	// pack RGBA colors into integers
 	var count = img.width * img.height;
-	var src = _src = new Array(count);
-	var dest = _dest = new Array(count*scale*scale);
+
+	if (window.ArrayBuffer) {
+		if (!window.hqxBufferSrc || window.hqxBufferSrc.byteLength < count * 4) {
+			window.hqxBufferSrc = new ArrayBuffer(count * 4);
+		}
+
+		if (!window.hqxBufferDest || window.hqxBufferDest.byteLength < count * scale * scale * 4) {
+			window.hqxBufferDest = new ArrayBuffer(count * scale * scale * 4);
+		}
+
+		var src = _src = new Int32Array(window.hqxBufferSrc);
+		var dest = _dest = new Int32Array(window.hqxBufferDest);
+	}
+	else {
+		var src = _src = new Array(count);
+		var dest = _dest = new Array(count*scale*scale);
+	}
+
 	var index;
 	for(var i = 0; i < count; i++) {
 		src[i] = (origPixels[(index = i << 2)+3] << 24) +
