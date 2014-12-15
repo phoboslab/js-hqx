@@ -32,6 +32,8 @@
 var 
 	_src = null,
 	_dest = null,
+	_srcBuffer = null,
+	_destBuffer = null,
 	
 	_MASK_2 = 0x00FF00,
 	_MASK_13 = 0xFF00FF,
@@ -59,9 +61,9 @@ var _Diff = function( w1, w2 ) {
 	// Mask against RGB_MASK to discard the alpha channel
 	var YUV1 = _RGBtoYUV(w1);
 	var YUV2 = _RGBtoYUV(w2);
-	return  ((_Math.abs((YUV1 & _Ymask) - (YUV2 & _Ymask)) > _trY ) ||
-		( _Math.abs((YUV1 & _Umask) - (YUV2 & _Umask)) > _trU ) ||
-		( _Math.abs((YUV1 & _Vmask) - (YUV2 & _Vmask)) > _trV ) );
+	return	((_Math.abs((YUV1 & _Ymask) - (YUV2 & _Ymask)) > _trY ) ||
+			( _Math.abs((YUV1 & _Umask) - (YUV2 & _Umask)) > _trU ) ||
+			( _Math.abs((YUV1 & _Vmask) - (YUV2 & _Vmask)) > _trV ) );
 };
 
 /* Interpolate functions */
@@ -163,76 +165,96 @@ var _Interp10 = function( pc, c1, c2, c3 ) {
 };
 
 
-var getVendorAttribute = function( el, attr ) {
-	var uc = attr.charAt(0).toUpperCase() + attr.substr(1);
-	return el[attr] || el['ms'+uc] || el['moz'+uc] || el['webkit'+uc] || el['o'+uc];
+function getVendorAttribute( el, attr ) {
+    var uc = attr.charAt(0).toUpperCase() + attr.substr(1);
+    return el[attr] || el['ms'+uc] || el['moz'+uc] || el['webkit'+uc] || el['o'+uc];
 };
 
+
+
+var cachedRatio, cachedGetImageDataHD;
 
 // This function normalizes getImageData to extract the real, actual
 // pixels from an image. The naive method recently failed on retina
 // devices with a backgingStoreRatio != 1
-var getImagePixels = function( image, x, y, width, height ) {
-	var canvas = document.createElement('canvas');
-	var ctx = canvas.getContext('2d');
 
-	var ratio = getVendorAttribute( ctx, 'backingStorePixelRatio' ) || 1;
-	ctx.getImageDataHD = getVendorAttribute( ctx, 'getImageDataHD' );
+function getImagePixels( image, x, y, width, height ) {
+    var canvas = document.createElement('canvas');
+    var ctx = canvas.getContext('2d');
 
-	var realWidth = image.width / ratio,
-		realHeight = image.height / ratio;
+    var ratio = cachedRatio;
+    if (!ratio) {
+        ratio = cachedRatio = getVendorAttribute( ctx, 'backingStorePixelRatio' ) || 1;
+    }
 
-	canvas.width = Math.ceil( realWidth );
-	canvas.height = Math.ceil( realHeight );
+    var realWidth = width / ratio,
+        realHeight = height / ratio;
 
-	ctx.drawImage( image, 0, 0, realWidth, realHeight );
-	
-	return (ratio === 1)
-		? ctx.getImageData( x, y, width, height )
-		: ctx.getImageDataHD( x, y, width, height );
+    canvas.width = Math.ceil( realWidth );
+    canvas.height = Math.ceil( realHeight );
+
+    ctx.drawImage( image, 0, 0, realWidth, realHeight );
+    
+    if (ratio === 1) {
+        return ctx.getImageData( x, y, width, height );
+    }
+    
+    if (!cachedGetImageDataHD) {
+        cachedGetImageDataHD = getVendorAttribute( ctx, 'getImageDataHD' );
+    }
+
+    ctx.getImageDataHD = cachedGetImageDataHD;
+
+    return ctx.getImageDataHD( x, y, width, height );
 };
 
 
 window.hqx = function( img, scale ) {
 	// We can only scale with a factor of 2, 3 or 4
-	if( [2,3,4].indexOf(scale) === -1 ) {
+	if([2,3,4].indexOf(scale) === -1 ) {
 		return img;
 	}
 
-	var orig, origCtx, scaled, origPixels;
+	var scaled, origPixels; 
+	var imgWidth = img.width;
+	var imgHeight = img.height;
+
 	if (img instanceof HTMLCanvasElement){
-		orig = img;
-		origCtx = orig.getContext('2d');
-		scaled = orig;
-		origPixels = origCtx.getImageData(0, 0, orig.width, orig.height).data;
+		origPixels = img.getContext('2d').getImageData(0, 0, imgWidth, imgHeight).data;
+		scaled = img;
 	} else {
-		origPixels = getImagePixels( img, 0, 0, img.width, img.height ).data;
+		origPixels = getImagePixels( img, 0, 0, imgWidth, imgHeight ).data;
 		scaled = document.createElement('canvas');
 	}
 	
 	
 	// pack RGBA colors into integers
-	var count = img.width * img.height;
 
-	if (window.ArrayBuffer) {
-		if (!window.hqxBufferSrc || window.hqxBufferSrc.byteLength < count * 4) {
-			window.hqxBufferSrc = new ArrayBuffer(count * 4);
+	var srcPxCount = imgWidth * imgHeight;
+	var destPxCount = srcPxCount * scale * scale;
+
+	var src, dest;
+
+	if (window.Int32Array) {
+
+		if (!_srcBuffer || _srcBuffer.byteLength < srcPxCount << 2) {
+			_srcBuffer  = new ArrayBuffer(srcPxCount << 2);
 		}
 
-		if (!window.hqxBufferDest || window.hqxBufferDest.byteLength < count * scale * scale * 4) {
-			window.hqxBufferDest = new ArrayBuffer(count * scale * scale * 4);
+		if (!_destBuffer || _destBuffer.byteLength < destPxCount << 2) {
+			_destBuffer = new ArrayBuffer(destPxCount << 2);
 		}
 
-		var src = _src = new Int32Array(window.hqxBufferSrc);
-		var dest = _dest = new Int32Array(window.hqxBufferDest);
+		src  = _src  = new Int32Array( _srcBuffer );
+		dest = _dest = new Int32Array( _destBuffer );
 	}
 	else {
-		var src = _src = new Array(count);
-		var dest = _dest = new Array(count*scale*scale);
+		src  = _src  = new Array( srcPxCount );
+		dest = _dest = new Array( destPxCount );
 	}
 
 	var index;
-	for(var i = 0; i < count; i++) {
+	for(var i = 0; i < srcPxCount; i++) {
 		src[i] = (origPixels[(index = i << 2)+3] << 24) +
 			(origPixels[index+2] << 16) +
 			(origPixels[index+1] << 8) +
@@ -240,34 +262,32 @@ window.hqx = function( img, scale ) {
 	}
 
 	// This is where the magic happens
-	if( scale === 2 ) hq2x( img.width, img.height );
-	else if( scale === 3 ) hq3x( img.width, img.height );
-	else if( scale === 4 ) hq4x( img.width, img.height );
+	if( scale === 2 ) hq2x( imgWidth, imgHeight );
+	else if( scale === 3 ) hq3x( imgWidth, imgHeight );
+	else if( scale === 4 ) hq4x( img.width, imgHeight );
 	// alternative: window['hq'+scale+'x']( img.width, img.height ); 
 
-	scaled.width = img.width * scale;
-	scaled.height = img.height * scale;
+	scaled.width = imgWidth * scale;
+	scaled.height = imgHeight * scale;
 	
 	var scaledCtx = scaled.getContext('2d');
 	var scaledPixels = scaledCtx.getImageData( 0, 0, scaled.width, scaled.height );
 	var scaledPixelsData = scaledPixels.data;
 	
 	// unpack integers to RGBA
-	var c, a, destLength = dest.length;
-	for( var j = 0; j < destLength; j++ ) {
-		a = ((c = dest[j]) & 0xFF000000) >> 24;
-		scaledPixelsData[(index = j << 2)+3] = a < 0 ? a + 256 : 0; // signed/unsigned :/
+	var c, alpha;
+	for( var j = 0; j < destPxCount; j++ ) {
+		alpha = ((c = dest[j]) & 0xFF000000) >> 24;
+		scaledPixelsData[(index = j << 2)+3] = alpha < 0 ? alpha + 256 : 0; // signed/unsigned :/
 		scaledPixelsData[index+2] = (c & 0x00FF0000) >> 16;
 		scaledPixelsData[index+1] = (c & 0x0000FF00) >> 8;
 		scaledPixelsData[index] = c & 0x000000FF;
 	}
-	_src = src = null;
-	_dest = dest = null;
+	//_src = src = null;
+	//_dest = dest = null;
 	scaledCtx.putImageData( scaledPixels, 0, 0 );
 	return scaled;
 };
-
-
 
 
 
@@ -276,7 +296,7 @@ window.hqx = function( img, scale ) {
 //------------------------------------------------------------------------------
 // hq 2x
 
-var hq2x = function( width, height ) {
+function hq2x( width, height ) {
 	var
 		i, j, k,
 		prevline, nextline,
@@ -3052,7 +3072,7 @@ var hq2x = function( width, height ) {
 // hq 3x
 
 
-var hq3x = function( width, height ) {
+function hq3x( width, height ) {
 	var
 		i, j, k,
 		prevline, nextline,
@@ -6799,7 +6819,7 @@ var hq3x = function( width, height ) {
 //------------------------------------------------------------------------------
 // hq 4x
 
-var hq4x = function( width, height ) {
+function hq4x( width, height ) {
 	var
 		i, j, k,
 		prevline, nextline,
