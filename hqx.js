@@ -275,10 +275,9 @@ window.hqx = function( img, scale ) {
 	var scaledPixelsData = scaledPixels.data;
 	
 	// unpack integers to RGBA
-	var c, alpha;
+	var c;
 	for( var j = 0; j < destPxCount; j++ ) {
-		alpha = ((c = dest[j]) & 0xFF000000) >> 24;
-		scaledPixelsData[(index = j << 2)+3] = alpha < 0 ? alpha + 256 : 0; // signed/unsigned :/
+		scaledPixelsData[(index = j << 2)+3] = ((c = dest[j]) & 0xFF000000) >>> 24;
 		scaledPixelsData[index+2] = (c & 0x00FF0000) >> 16;
 		scaledPixelsData[index+1] = (c & 0x0000FF00) >> 8;
 		scaledPixelsData[index] = c & 0x000000FF;
