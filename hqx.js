@@ -33,8 +33,9 @@ var
 	_src = null,
 	_dest = null,
 	
-	_MASK_2 = 0x00FF00,
-	_MASK_13 = 0xFF00FF,
+	_Amask  = 0xFF000000,
+	_MASK_2  = 0x0000FF00,
+	_MASK_13 = 0x00FF00FF,
 	
 	_Ymask = 0x00FF0000,
 	_Umask = 0x0000FF00,
@@ -46,120 +47,150 @@ var
 
 var _Math = window.Math; // global to local. SHALL NOT cache abs directly (http://jsperf.com/math-vs-global/2)
 
+// ARGB -> AYUV
 var _RGBtoYUV = function( c ) {
 	var r = (c & 0xFF0000) >> 16;
 	var g = (c & 0x00FF00) >> 8;
-	var b =  c & 0x0000FF;
-	return  ((/*y=*/(0.299*r + 0.587*g + 0.114*b) | 0) << 16) +
-		((/*u=*/((-0.169*r - 0.331*g + 0.5*b) + 128) | 0) << 8) + 
-		(/*v=*/((0.5*r - 0.419*g - 0.081*b) + 128) | 0);
+	var b = (c & 0x0000FF);
+	
+	return (/*a=*/(c & 0xFF000000)) |
+		((/*y=*/ ( 0.299*r + 0.587*g + 0.114*b) | 0) << 16) |
+		((/*u=*/((-0.169*r - 0.331*g +   0.5*b) + 128) | 0) << 8) |
+		( /*v=*/((   0.5*r - 0.419*g - 0.081*b) + 128) | 0);
 };
 
 var _Diff = function( w1, w2 ) {
-	// Mask against RGB_MASK to discard the alpha channel
+	// Javascript uses signed 32 bit ints. To get alpha we need zerofill shift
 	var YUV1 = _RGBtoYUV(w1);
 	var YUV2 = _RGBtoYUV(w2);
-	return  ((_Math.abs((YUV1 & _Ymask) - (YUV2 & _Ymask)) > _trY ) ||
+	return ((YUV1 ^ YUV2) & 0xFF000000 ||
+		( _Math.abs((YUV1 & _Ymask) - (YUV2 & _Ymask)) > _trY ) ||
 		( _Math.abs((YUV1 & _Umask) - (YUV2 & _Umask)) > _trU ) ||
 		( _Math.abs((YUV1 & _Vmask) - (YUV2 & _Vmask)) > _trV ) );
 };
 
 /* Interpolate functions */
 
-var _Interp1 = function( pc, c1, c2 ) {
-    //*pc = (c1*3+c2) >> 2;
-    if (c1 === c2) {
+// deoptimized?: see https://github.com/phoboslab/js-hqx/pull/3
+var _mix2 = function( pc, c1, w1, c2, w2 ) {
+	// (c1 * w1 + c2 * w2) / (w1 + w2)
+	if (c1 === c2) {
+		_dest[pc] = c1;
+		return;
+	}
+	var a1 = (c1 >>> 24) * w1, a2 = (c2 >>> 24) * w2;
+	var tw = 0, tr = 0, tg = 0, tb = 0;
+	if(a1 !== 0)
+	{
+		tw += w1;
+		tr += ((c1 & 0xFF0000) >> 16) * w1;
+		tg += ((c1 & 0x00FF00) >>  8) * w1;
+		tb += ((c1 & 0x0000FF)      ) * w1;
+	}
+	if(a2 !== 0)
+	{
+		tw += w2;
+		tr += ((c2 & 0xFF0000) >> 16) * w2;
+		tg += ((c2 & 0x00FF00) >>  8) * w2;
+		tb += ((c2 & 0x0000FF)      ) * w2;
+	}
+	if(tw !== 0)
+	{
+		tr = (tr / tw) << 16;
+		tg = (tg / tw) << 8;
+		tb = (tb / tw);
+	}
+	_dest[pc] = tr | tg | tb;
+	_dest[pc] |= ((a1 + a2) / (w1 + w2)) << 24;
+};
+
+var _mix3 = function( pc, c1, w1, c2, w2, c3, w3 ) {
+	// (c1 * w1 + c2 * w2 + c3 * w3) / (w1 + w2 + w3)
+    if (c1 === c2 && c2 === c3) {
         _dest[pc] = c1;
         return;
     }
-    _dest[pc] = ((((c1 & _MASK_2) * 3 + (c2 & _MASK_2)) >> 2) & _MASK_2) +
-        ((((c1 & _MASK_13) * 3 + (c2 & _MASK_13)) >> 2) & _MASK_13);
+	var a1 = (c1 >>> 24) * w1, a2 = (c2 >>> 24) * w2, a3 = (c3 >>> 24) * w3;
+	var tw = 0, tr = 0, tg = 0, tb = 0;
+	if(a1 !== 0)
+	{
+		tw += w1;
+		tr += ((c1 & 0xFF0000) >> 16) * w1;
+		tg += ((c1 & 0x00FF00) >>  8) * w1;
+		tb += ((c1 & 0x0000FF)      ) * w1;
+	}
+	if(a2 !== 0)
+	{
+		tw += w2;
+		tr += ((c2 & 0xFF0000) >> 16) * w2;
+		tg += ((c2 & 0x00FF00) >>  8) * w2;
+		tb += ((c2 & 0x0000FF)      ) * w2;
+	}
+	if(a3 !== 0)
+	{
+		tw += w3;
+		tr += ((c3 & 0xFF0000) >> 16) * w3;
+		tg += ((c3 & 0x00FF00) >>  8) * w3;
+		tb += ((c3 & 0x0000FF)      ) * w3;
+	}
+	if(tw !== 0)
+	{
+		tr = (tr / tw) << 16;
+		tg = (tg / tw) << 8;
+		tb = (tb / tw);
+	}
+	_dest[pc] = tr | tg | tb;
+	_dest[pc] |= ((a1 + a2 + a3) / (w1 + w2 + w3)) << 24;
+};
 
-	_dest[pc] |= (c1 & 0xFF000000);
+var _Interp1 = function( pc, c1, c2 ) {
+    //*pc = (c1*3+c2) >> 2;
+    _mix2(pc, c1, 3, c2, 1);
 };
 
 var _Interp2 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*2+c2+c3) >> 2;
-    _dest[pc] = (((((c1 & _MASK_2) << 1) + (c2 & _MASK_2) + (c3 & _MASK_2)) >> 2) & _MASK_2) +
-          (((((c1 & _MASK_13) << 1) + (c2 & _MASK_13) + (c3 & _MASK_13)) >> 2) & _MASK_13);
-
-	_dest[pc] |= (c1 & 0xFF000000);
+    _mix3(pc, c1, 2, c2, 1, c3, 1);
 };
 
 var _Interp3 = function( pc, c1, c2 ) {
     //*pc = (c1*7+c2)/8;
-    if (c1 === c2) {
-        _dest[pc] = c1;
-        return;
-    }
-    _dest[pc] = ((((c1 & _MASK_2) * 7 + (c2 & _MASK_2)) >> 3) & _MASK_2) +
-        ((((c1 & _MASK_13) * 7 + (c2 & _MASK_13)) >> 3) & _MASK_13);
-
-	_dest[pc] |= (c1 & 0xFF000000);
+    _mix2(pc, c1, 7, c2, 1);
 };
 
 var _Interp4 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*2+(c2+c3)*7)/16;
-    _dest[pc] = (((((c1 & _MASK_2) << 1) + (c2 & _MASK_2) * 7 + (c3 & _MASK_2) * 7) >> 4) & _MASK_2) +
-          (((((c1 & _MASK_13) << 1) + (c2 & _MASK_13) * 7 + (c3 & _MASK_13) * 7) >> 4) & _MASK_13);
-
-	_dest[pc] |= (c1 & 0xFF000000);
+    _mix3(pc, c1, 2, c2, 7, c3, 7);
 };
 
 var _Interp5 = function( pc, c1, c2 ) {
     //*pc = (c1+c2) >> 1;
-    if (c1 === c2) {
-        _dest[pc] = c1;
-        return;
-    }
-    _dest[pc] = ((((c1 & _MASK_2) + (c2 & _MASK_2)) >> 1) & _MASK_2) +
-        ((((c1 & _MASK_13) + (c2 & _MASK_13)) >> 1) & _MASK_13);
-
-	_dest[pc] |= (c1 & 0xFF000000);
+    _mix2(pc, c1, 1, c2, 1);
 };
 
 var _Interp6 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*5+c2*2+c3)/8;
-    _dest[pc] = ((((c1 & _MASK_2) * 5 + ((c2 & _MASK_2) << 1) + (c3 & _MASK_2)) >> 3) & _MASK_2) +
-          ((((c1 & _MASK_13) * 5 + ((c2 & _MASK_13) << 1) + (c3 & _MASK_13)) >> 3) & _MASK_13);
-
-	_dest[pc] |= (c1 & 0xFF000000);
+    _mix3(pc, c1, 5, c2, 2, c3, 1);
 };
 
 var _Interp7 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*6+c2+c3)/8;
-    _dest[pc] = ((((c1 & _MASK_2) * 6 + (c2 & _MASK_2) + (c3 & _MASK_2)) >> 3) & _MASK_2) +
-          ((((c1 & _MASK_13) * 6 + (c2 & _MASK_13) + (c3 & _MASK_13)) >> 3) & _MASK_13);
-
-	_dest[pc] |= (c1 & 0xFF000000);
+    _mix3(pc, c1, 6, c2, 1, c3, 1);
 };
 
 var _Interp8 = function( pc, c1, c2 ) {
     //*pc = (c1*5+c2*3)/8;
-    if (c1 === c2) {
-        _dest[pc] = c1;
-        return;
-    }
-    _dest[pc] = ((((c1 & _MASK_2) * 5 + (c2 & _MASK_2) * 3) >> 3) & _MASK_2) +
-          ((((c1 & _MASK_13) * 5 + (c2 & _MASK_13) * 3) >> 3) & _MASK_13);
-
-	_dest[pc] |= (c1 & 0xFF000000);
+    _mix2(pc, c1, 5, c2, 3);
 };
 
 var _Interp9 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*2+(c2+c3)*3)/8;
-    _dest[pc] = (((((c1 & _MASK_2) << 1) + (c2 & _MASK_2) * 3 + (c3 & _MASK_2) * 3) >> 3) & _MASK_2) +
-          (((((c1 & _MASK_13) << 1) + (c2 & _MASK_13) * 3 + (c3 & _MASK_13) * 3) >> 3) & _MASK_13);
-
-	_dest[pc] |= (c1 & 0xFF000000);
+    _mix3(pc, c1, 2, c2, 3, c3, 3);
 };
 
 var _Interp10 = function( pc, c1, c2, c3 ) {
     //*pc = (c1*14+c2+c3)/16;
-    _dest[pc] = ((((c1 & _MASK_2) * 14 + (c2 & _MASK_2) + (c3 & _MASK_2)) >> 4) & _MASK_2) +
-          ((((c1 & _MASK_13) * 14 + (c2 & _MASK_13) + (c3 & _MASK_13)) >> 4) & _MASK_13);
-
-	_dest[pc] |= (c1 & 0xFF000000);
+    _mix3(pc, c1, 14, c2, 1, c3, 1);
 };
 
 
@@ -217,10 +248,12 @@ window.hqx = function( img, scale ) {
 	var dest = _dest = new Array(count*scale*scale);
 	var index;
 	for(var i = 0; i < count; i++) {
-		src[i] = (origPixels[(index = i << 2)+3] << 24) +
-			(origPixels[index+2] << 16) +
-			(origPixels[index+1] << 8) +
+		src[i] = (origPixels[(index = i << 2)+3] << 24) |
+			(origPixels[index+2] << 16) |
+			(origPixels[index+1] << 8) |
 			origPixels[index];
+		// change full transparent pixels to full transparent purple pixels
+		//src[i] = (origPixels[index+3] == 0) ? 0x00FF00FF : src[i];
 	}
 
 	// This is where the magic happens
@@ -239,8 +272,8 @@ window.hqx = function( img, scale ) {
 	// unpack integers to RGBA
 	var c, a, destLength = dest.length;
 	for( var j = 0; j < destLength; j++ ) {
-		a = ((c = dest[j]) & 0xFF000000) >> 24;
-		scaledPixelsData[(index = j << 2)+3] = a < 0 ? a + 256 : 0; // signed/unsigned :/
+		a = ((c = dest[j]) & 0xFF000000) >>> 24; // signed/unsigned :/
+		scaledPixelsData[(index = j << 2)+3] = a;
 		scaledPixelsData[index+2] = (c & 0x00FF0000) >> 16;
 		scaledPixelsData[index+1] = (c & 0x0000FF00) >> 8;
 		scaledPixelsData[index] = c & 0x000000FF;
@@ -360,7 +393,8 @@ var hq2x = function( width, height ) {
                 if ( w[k] !== w[5] )
                 {
                     YUV2 = RGBtoYUV(w[k]);
-                    if ( ( Math.abs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
+                    if ( ((YUV1 ^ YUV2) & 0xFF000000) ||
+							( Math.abs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
                             ( Math.abs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
                             ( Math.abs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
                         pattern |= flag;
@@ -3134,9 +3168,10 @@ var hq3x = function( width, height ) {
 				if ( w[k] !== w[5] )
 				{
 					YUV2 = RGBtoYUV(w[k]);
-					if ( ( Math.abs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
-							( Math.abs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
-							( Math.abs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
+					if ( ((YUV1 ^ YUV2) & 0xFF000000) ||
+						( Math.abs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
+						( Math.abs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
+						( Math.abs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
 						pattern |= flag;
 				}
 				flag <<= 1;
@@ -6882,9 +6917,10 @@ var hq4x = function( width, height ) {
                 if ( w[k] !== w[5] )
                 {
                     YUV2 = RGBtoYUV(w[k]);
-                    if ( ( Math.abs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
-                            ( Math.abs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
-                            ( Math.abs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
+                    if ( ((YUV1 ^ YUV2) & 0xFF000000) ||
+						( Math.abs((YUV1 & Ymask) - (YUV2 & Ymask)) > trY ) ||
+						( Math.abs((YUV1 & Umask) - (YUV2 & Umask)) > trU ) ||
+						( Math.abs((YUV1 & Vmask) - (YUV2 & Vmask)) > trV ) )
                         pattern |= flag;
                 }
                 flag <<= 1;
